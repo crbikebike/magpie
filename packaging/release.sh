@@ -57,6 +57,8 @@ gh release create "$TAG" \
     "$STABLE_PKG" \
     --title "Magpie $VERSION" \
     --notes "$(cat <<NOTES
+![Magpie](https://raw.githubusercontent.com/crbikebike/magpie/main/docs/banner.png)
+
 ## Install with Claude Code (recommended)
 
 Open Claude Code in the directory where you want your wiki, then say:
@@ -76,6 +78,10 @@ Claude Code will install Homebrew, yap, set up an LLM Wiki, download the install
 5. Open Magpie, choose your output folder, grant Microphone access
 
 **Requires macOS 14.4+, [Claude Code](https://claude.ai/code) installed and authenticated.**
+
+---
+
+![App screenshot](https://raw.githubusercontent.com/crbikebike/magpie/main/docs/screenshot.png)
 NOTES
 )"
 
