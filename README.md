@@ -15,7 +15,9 @@ Plus a monthly index: `2026-04.yaml` — a list of all meetings with titles, sum
 
 ## Install
 
-Build from source — this avoids macOS Gatekeeper entirely since the binary is compiled on your machine.
+Point a Claude Code session at this repo and ask it to install Magpie.
+
+Or, build manually:
 
 **1. Clone the repo:**
 
