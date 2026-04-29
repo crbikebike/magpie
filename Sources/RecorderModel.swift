@@ -65,6 +65,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
 
     // System audio state
     @Published var sysAudioPermission: SystemAudioSession.Permission = .notDetermined
+    private var hasRequestedSysAudioPermission = false
     @Published var showFirstRecordingConfirmation = false
     @Published var headphoneNudgeDismissed = false
     @Published var systemAudioStatus: SystemAudioStatus = .notApplicable {
@@ -170,8 +171,14 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
         sysAudioPermission = SystemAudioSession.currentPermission()
-        Task { @MainActor in
-            self.sysAudioPermission = await SystemAudioSession.probePermission()
+        // Probe live TCC only when useful — probing always fires a macOS prompt on first
+        // call without permission, which would appear behind the onboarding panel.
+        // - authorized: verify the cached grant wasn't revoked (e.g. after a rebuild)
+        // - hasRequested: user tapped Enable and went to Settings; detect the grant on return
+        if sysAudioPermission == .authorized || hasRequestedSysAudioPermission {
+            Task { @MainActor in
+                self.sysAudioPermission = await SystemAudioSession.probePermission()
+            }
         }
     }
 
@@ -182,6 +189,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func requestSysAudioPermission() {
+        hasRequestedSysAudioPermission = true
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
