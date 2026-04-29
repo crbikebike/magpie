@@ -184,9 +184,9 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func requestSysAudioPermission() {
-        NSApp.activate(ignoringOtherApps: true)
-        let result = SystemAudioSession.requestPermission()
-        DispatchQueue.main.async { self.sysAudioPermission = result }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Watcher Management
