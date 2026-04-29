@@ -136,6 +136,19 @@ def start_watcher(output: Path, poll_interval: int = 5) -> None:
     PID_PATH = output / ".watcher.pid"
     HEALTH_PATH = output / ".watcher-health.json"
 
+    # launchd gives a minimal PATH. Ask the login shell for the real one so
+    # tools like claude that live in npm/homebrew/local bin dirs are reachable.
+    try:
+        shell = os.environ.get("SHELL", "/bin/zsh")
+        result = subprocess.run(
+            [shell, "-l", "-c", "echo $PATH"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            os.environ["PATH"] = result.stdout.strip()
+    except Exception:
+        pass
+
     # Write PID file
     PID_PATH.write_text(str(os.getpid()))
 
