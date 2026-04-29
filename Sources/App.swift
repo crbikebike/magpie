@@ -34,13 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            if let iconURL = Bundle.main.url(forResource: "raven", withExtension: "svg"),
-               let img = NSImage(contentsOf: iconURL) {
-                img.isTemplate = true
-                button.image = img
-            } else {
-                button.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
-            }
+            button.image = ravenImage() ?? NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
             button.action = #selector(togglePopover(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -87,13 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     img?.isTemplate = false
                     button.image = img
                 } else {
-                    if let iconURL = Bundle.main.url(forResource: "raven", withExtension: "svg"),
-                       let img = NSImage(contentsOf: iconURL) {
-                        img.isTemplate = true
-                        button.image = img
-                    } else {
-                        button.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
-                    }
+                    button.image = self.ravenImage() ?? NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
                     log("recording-tint: restore img=\(String(describing: button.image))", vaultPath: self.recorder.vaultPath)
                 }
                 button.contentTintColor = nil
@@ -247,6 +235,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
+    }
+
+    private func ravenImage() -> NSImage? {
+        guard let url = Bundle.main.url(forResource: "raven", withExtension: "svg"),
+              let img = NSImage(contentsOf: url) else { return nil }
+        img.isTemplate = true
+        return img
     }
 
     @objc func openPermissions() {
