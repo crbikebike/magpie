@@ -36,15 +36,17 @@ final class SystemAudioSession: NSObject, RecordingSession {
         UserDefaults.standard.bool(forKey: permissionGrantedKey) ? .authorized : .notDetermined
     }
 
-    /// Live-probe TCC state by asking SCShareableContent. Updates UserDefaults on success.
-    /// Use when returning from System Settings where permission may have been granted externally.
+    /// Live-probe TCC state by asking SCShareableContent.
+    /// Sets UserDefaults on success, clears it on failure so stale grants
+    /// (e.g. after a rebuild that resets TCC) don't persist.
     static func probePermission() async -> Permission {
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             UserDefaults.standard.set(true, forKey: permissionGrantedKey)
             return .authorized
         } catch {
-            return currentPermission()
+            UserDefaults.standard.removeObject(forKey: permissionGrantedKey)
+            return .notDetermined
         }
     }
 
