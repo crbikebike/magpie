@@ -386,13 +386,16 @@ def process_transcript(path: Path) -> Optional[dict]:
     if summary:
         _update_yaml_field(new_path, "summary", summary)
 
-    # write_sidecar and append_monthly_yaml will be added in Task 7
-    print(f"[WATCHER] Done: {title} — summary={summary_status}, topics={len(topics)}")
+    write_sidecar(new_path, title, file_date, summary or "", topics)
+    append_monthly_yaml(OUTPUT_DIR, title, file_date, new_path.name, summary or "", topics)
+
+    topic_count = len(topics) if summary else 0
     return {
         "filename": new_path.name,
         "title": title,
         "date": file_date,
         "summary_status": summary_status,
+        "topic_count": topic_count,
         "processed_at": now_str,
     }
 
@@ -623,6 +626,173 @@ def generate_summary(transcript_path: Path) -> tuple:
     except OSError as e:
         print(f"[WATCHER] summary: OS ERROR — {type(e).__name__}")
         return None, []
+
+
+def write_sidecar(
+    transcript_path: Path,
+    title: str,
+    date: str,
+    summary: str,
+    topics: list,
+) -> Path:
+    """Write a summary sidecar file for a transcript.
+
+    Creates a .summary.md file with YAML front matter and optional summary/topics sections.
+
+    Args:
+        transcript_path: Path to the transcript file.
+        title: Meeting title.
+        date: ISO date string (YYYY-MM-DD).
+        summary: Summary text (can be empty).
+        topics: List of topic strings.
+
+    Returns:
+        Path to the written sidecar file.
+    """
+    sidecar_path = transcript_path.parent / (transcript_path.stem + ".summary.md")
+
+    lines = [
+        "---",
+        f"title: {title}",
+        f"date: {date}",
+        f"transcript: {transcript_path.name}",
+        "---",
+        "",
+    ]
+
+    if summary:
+        lines.append(summary)
+        lines.append("")
+
+    if topics:
+        lines.append("## Topics")
+        lines.append("")
+        for topic in topics:
+            lines.append(f"- {topic}")
+        lines.append("")
+
+    sidecar_path.write_text("\n".join(lines), encoding="utf-8")
+    return sidecar_path
+
+
+def _yaml_scalar(value: str) -> str:
+    """Escape a string for safe YAML output.
+
+    Args:
+        value: The string to escape.
+
+    Returns:
+        Properly quoted/escaped YAML scalar.
+    """
+    if not value:
+        return '""'
+    needs_quotes = any(c in value for c in ':{}[],"\'#&*!|>%@`\n\\') or value[0] in ' \t'
+    if needs_quotes:
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
+def _build_yaml_entry(
+    title: str,
+    date: str,
+    filename: str,
+    summary: str,
+    topics: list,
+) -> str:
+    """Build a single YAML entry for append_monthly_yaml.
+
+    Args:
+        title: Meeting title.
+        date: ISO date string (YYYY-MM-DD).
+        filename: Transcript filename.
+        summary: Summary text.
+        topics: List of topic strings.
+
+    Returns:
+        YAML entry as a string.
+    """
+    lines = [
+        f"- title: {_yaml_scalar(title)}",
+        f"  date: {date}",
+        f"  file: {filename}",
+        f"  summary: {_yaml_scalar(summary)}",
+    ]
+    if topics:
+        lines.append("  topics:")
+        for topic in topics:
+            lines.append(f"    - {_yaml_scalar(topic)}")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def _remove_yaml_entry_by_filename(content: str, filename: str) -> str:
+    """Remove a YAML entry from content by matching its file field.
+
+    Args:
+        content: The YAML content.
+        filename: The filename to match and remove.
+
+    Returns:
+        Content with the matching entry removed.
+    """
+    lines = content.splitlines(keepends=True)
+    entry_start = None
+    file_line_found = False
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("- title:"):
+            if file_line_found:
+                return "".join(lines[:entry_start]) + "".join(lines[i:])
+            entry_start = i
+            file_line_found = False
+        if entry_start is not None and f"file: {filename}" in line:
+            file_line_found = True
+
+    if file_line_found and entry_start is not None:
+        return "".join(lines[:entry_start])
+
+    return content
+
+
+def append_monthly_yaml(
+    output_dir: Path,
+    title: str,
+    date: str,
+    filename: str,
+    summary: str,
+    topics: list,
+) -> None:
+    """Append or update a meeting entry in a monthly YAML index file.
+
+    Creates or updates a file named YYYY-MM.yaml with meeting metadata.
+    If an entry with the same filename already exists, it is replaced.
+
+    Args:
+        output_dir: Directory where the YAML file is written.
+        title: Meeting title.
+        date: ISO date string (YYYY-MM-DD).
+        filename: Transcript filename.
+        summary: Summary text.
+        topics: List of topic strings.
+    """
+    try:
+        month = date[:7]  # "YYYY-MM"
+    except (TypeError, IndexError):
+        print(f"[WATCHER] append_monthly_yaml: invalid date {date!r} — skipping")
+        return
+
+    yaml_path = output_dir / f"{month}.yaml"
+    new_entry = _build_yaml_entry(title, date, filename, summary, topics)
+
+    if not yaml_path.exists():
+        yaml_path.write_text(new_entry, encoding="utf-8")
+        return
+
+    existing = yaml_path.read_text(encoding="utf-8")
+    cleaned = _remove_yaml_entry_by_filename(existing, filename)
+    yaml_path.write_text(cleaned + new_entry, encoding="utf-8")
 
 
 def slugify(title: str) -> str:
