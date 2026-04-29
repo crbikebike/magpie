@@ -293,6 +293,16 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             load.standardError = FileHandle.nullDevice
             try? load.run()
             load.waitUntilExit()
+            // launchctl bootstrap returns before launchd actually starts the Python
+            // process. Poll for the PID file so the UI update reflects real state.
+            let pidPath = vault.appendingPathComponent(".watcher.pid")
+            let deadline = Date().addingTimeInterval(5)
+            while Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.2)
+                if let pidStr = try? String(contentsOf: pidPath, encoding: .utf8),
+                   let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)),
+                   kill(pid, 0) == 0 { break }
+            }
             log("Watcher agent installed — output=\(vault.path)", vaultPath: vault)
             DispatchQueue.main.async { self.objectWillChange.send() }
         }
