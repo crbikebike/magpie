@@ -25,27 +25,57 @@ final class SystemAudioSession: NSObject, RecordingSession {
 
     // MARK: - Permission Management
 
-    /// UserDefaults key persisting the last-known TCC grant state.
-    /// TCC probing is unreliable — UserDefaults is the only stable signal.
+    /// UserDefaults keys persisting TCC grant state and the binary date at grant time.
     static let permissionGrantedKey = "sysAudioPermissionGranted"
+    static let permissionBinaryDateKey = "sysAudioPermissionBinaryDate"
 
     enum Permission { case notDetermined, authorized, denied }
 
-    /// Probe current permission state from UserDefaults.
+    /// Return the binary's modification date, or nil if unavailable.
+    private static func binaryModificationDate() -> Date? {
+        guard let url = Bundle.main.executableURL,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let date = attrs[.modificationDate] as? Date else { return nil }
+        return date
+    }
+
+    /// Persist the current binary date alongside the permission grant.
+    private static func storeBinaryDate() {
+        guard let date = binaryModificationDate() else { return }
+        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: permissionBinaryDateKey)
+    }
+
+    /// Read permission from UserDefaults, clearing it if the binary has been rebuilt
+    /// since the grant was recorded. No live TCC call — never triggers a system prompt.
     static func currentPermission() -> Permission {
-        UserDefaults.standard.bool(forKey: permissionGrantedKey) ? .authorized : .notDetermined
+        guard UserDefaults.standard.bool(forKey: permissionGrantedKey) else {
+            return .notDetermined
+        }
+        // If the binary changed since permission was granted, TCC was reset by macOS.
+        // Clear the stale entry so onboarding shows Enable instead of Done.
+        if let current = binaryModificationDate() {
+            let stored = UserDefaults.standard.double(forKey: permissionBinaryDateKey)
+            if stored == 0 || abs(current.timeIntervalSince1970 - stored) > 1 {
+                UserDefaults.standard.removeObject(forKey: permissionGrantedKey)
+                UserDefaults.standard.removeObject(forKey: permissionBinaryDateKey)
+                return .notDetermined
+            }
+        }
+        return .authorized
     }
 
     /// Live-probe TCC state by asking SCShareableContent.
-    /// Sets UserDefaults on success, clears it on failure so stale grants
-    /// (e.g. after a rebuild that resets TCC) don't persist.
+    /// Only call this when the user has explicitly requested permission — calling
+    /// it silently in the background can trigger a macOS system prompt.
     static func probePermission() async -> Permission {
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             UserDefaults.standard.set(true, forKey: permissionGrantedKey)
+            storeBinaryDate()
             return .authorized
         } catch {
             UserDefaults.standard.removeObject(forKey: permissionGrantedKey)
+            UserDefaults.standard.removeObject(forKey: permissionBinaryDateKey)
             return .notDetermined
         }
     }
@@ -69,6 +99,7 @@ final class SystemAudioSession: NSObject, RecordingSession {
                 do {
                     _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
                     UserDefaults.standard.set(true, forKey: permissionGrantedKey)
+                    SystemAudioSession.storeBinaryDate()
                     result = .authorized
                 } catch {
                     result = .denied
@@ -120,6 +151,7 @@ final class SystemAudioSession: NSObject, RecordingSession {
                 self.stream = stream
                 self.isCapturing = true
                 UserDefaults.standard.set(true, forKey: SystemAudioSession.permissionGrantedKey)
+                SystemAudioSession.storeBinaryDate()
             } catch {
                 startError = error
             }

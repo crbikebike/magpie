@@ -171,11 +171,10 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
         sysAudioPermission = SystemAudioSession.currentPermission()
-        // Probe live TCC only when useful — probing always fires a macOS prompt on first
-        // call without permission, which would appear behind the onboarding panel.
-        // - authorized: verify the cached grant wasn't revoked (e.g. after a rebuild)
-        // - hasRequested: user tapped Enable and went to Settings; detect the grant on return
-        if sysAudioPermission == .authorized || hasRequestedSysAudioPermission {
+        // Only probe live TCC when the user has explicitly tapped Enable and gone to
+        // Settings — probing silently can fire a macOS system prompt. Stale grants
+        // after a rebuild are detected in currentPermission() via binary date check.
+        if hasRequestedSysAudioPermission && sysAudioPermission != .authorized {
             Task { @MainActor in
                 self.sysAudioPermission = await SystemAudioSession.probePermission()
             }
