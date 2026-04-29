@@ -191,6 +191,13 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         return kill(pid, 0) == 0
     }
 
+    private func xmlEscape(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;")
+         .replacingOccurrences(of: "<", with: "&lt;")
+         .replacingOccurrences(of: ">", with: "&gt;")
+         .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
     func installWatcherAgent() {
         guard let vault = vaultPath else { return }
         guard let watcherURL = Bundle.main.url(forResource: "watcher", withExtension: "py") else {
@@ -221,26 +228,26 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             <string>\(plistLabel)</string>
             <key>ProgramArguments</key>
             <array>
-                <string>\(python3)</string>
-                <string>\(watcherURL.path)</string>
+                <string>\(xmlEscape(python3))</string>
+                <string>\(xmlEscape(watcherURL.path))</string>
                 <string>--output</string>
-                <string>\(vault.path)</string>
+                <string>\(xmlEscape(vault.path))</string>
             </array>
             <key>EnvironmentVariables</key>
             <dict>
                 <key>PATH</key>
-                <string>\(resolvedPath)</string>
+                <string>\(xmlEscape(resolvedPath))</string>
             </dict>
             <key>KeepAlive</key>
             <true/>
             <key>RunAtLoad</key>
             <true/>
             <key>StandardOutPath</key>
-            <string>\(vault.path)/.watcher-stdout.log</string>
+            <string>\(xmlEscape(vault.path))/.watcher-stdout.log</string>
             <key>StandardErrorPath</key>
-            <string>\(vault.path)/.watcher-stderr.log</string>
+            <string>\(xmlEscape(vault.path))/.watcher-stderr.log</string>
             <key>WorkingDirectory</key>
-            <string>\(vault.path)</string>
+            <string>\(xmlEscape(vault.path))</string>
         </dict>
         </plist>
         """
@@ -254,22 +261,26 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             log("Failed to write watcher plist: \(error.localizedDescription)", vaultPath: vault)
             return
         }
-        // Unload any existing agent (ignore error — may not be loaded)
-        let unload = Process()
-        unload.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        unload.arguments = ["bootout", "gui/\(getuid())", plistPath.path]
-        unload.standardOutput = FileHandle.nullDevice
-        unload.standardError = FileHandle.nullDevice
-        try? unload.run(); unload.waitUntilExit()
-        // Load new agent
-        let load = Process()
-        load.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        load.arguments = ["bootstrap", "gui/\(getuid())", plistPath.path]
-        load.standardOutput = FileHandle.nullDevice
-        load.standardError = FileHandle.nullDevice
-        try? load.run(); load.waitUntilExit()
-        log("Watcher agent installed — output=\(vault.path)", vaultPath: vault)
-        DispatchQueue.main.async { self.objectWillChange.send() }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            // Unload any existing agent (ignore error — may not be loaded)
+            let unload = Process()
+            unload.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            unload.arguments = ["bootout", "gui/\(getuid())", plistPath.path]
+            unload.standardOutput = FileHandle.nullDevice
+            unload.standardError = FileHandle.nullDevice
+            try? unload.run(); unload.waitUntilExit()
+            // Load new agent
+            let load = Process()
+            load.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            load.arguments = ["bootstrap", "gui/\(getuid())", plistPath.path]
+            load.standardOutput = FileHandle.nullDevice
+            load.standardError = FileHandle.nullDevice
+            try? load.run()
+            load.waitUntilExit()
+            log("Watcher agent installed — output=\(vault.path)", vaultPath: vault)
+            DispatchQueue.main.async { self.objectWillChange.send() }
+        }
     }
 
     func uninstallWatcherAgent() {
