@@ -94,6 +94,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>Magpie captures system audio so your recordings include both sides of calls.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>Magpie captures system audio for meeting transcription.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Magpie uses on-device speech recognition to transcribe your meetings.</string>
 </dict>
 </plist>
 PLIST
