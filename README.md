@@ -23,7 +23,9 @@ Build from source — this avoids macOS Gatekeeper entirely since the binary is 
 git clone https://github.com/crbikebike/magpie.git ~/magpie
 ```
 
-**2. Install dependencies and build:**
+**2. Open a Claude Code session pointed at `~/magpie` and ask it to install Magpie.** It will find the install command and handle the rest.
+
+Or manually:
 
 ```bash
 brew install yap
@@ -33,8 +35,6 @@ bash ~/magpie/bin/build.sh
 Claude Code must be installed and authenticated (`claude` on your PATH) for transcription and summaries to work.
 
 Magpie.app will be in `~/Applications/`.
-
-> **Claude Code users:** once the repo is cloned, open a session inside `~/magpie` and use `/install-magpie` to handle steps 2 and above, or `/update-magpie` for future updates.
 
 ## First launch
 
