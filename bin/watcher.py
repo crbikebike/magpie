@@ -124,6 +124,59 @@ def deslugify(filename_stem: str) -> str:
     return " ".join(w.title() for w in words if w) or "Untitled"
 
 
+def _enrich_path_for_launchd() -> None:
+    """Broaden PATH so tools like claude are findable when running under launchd.
+
+    launchd provides a minimal PATH. nvm, volta, and npm-installed binaries are
+    typically added in .zshrc (interactive shells) or .zprofile (login shells) —
+    neither of which launchd sources. We try both startup modes, then fall back
+    to scanning known install locations.
+    """
+    if shutil.which("claude"):
+        return
+
+    home = Path.home()
+    shell = os.environ.get("SHELL") or "/bin/zsh"
+    env = {**os.environ, "TERM": "dumb", "HOME": str(home)}
+
+    for flags in [["-l", "-c"], ["-i", "-c"]]:
+        try:
+            r = subprocess.run(
+                [shell] + flags + ["printf '%s' \"$PATH\""],
+                capture_output=True, text=True, timeout=5, env=env,
+            )
+            if r.returncode == 0:
+                # Skip any greeting lines; take the last one that looks like a PATH
+                lines = [ln for ln in r.stdout.splitlines() if ":" in ln and "/" in ln]
+                if lines:
+                    os.environ["PATH"] = lines[-1]
+                    if shutil.which("claude"):
+                        return
+        except Exception:
+            pass
+
+    # Manual fallback: common locations for npm/nvm/volta-installed binaries
+    candidates = [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        str(home / ".local" / "bin"),
+        str(home / ".npm-global" / "bin"),
+        str(home / ".volta" / "bin"),
+    ]
+    nvm_dir = home / ".nvm" / "versions" / "node"
+    if nvm_dir.is_dir():
+        try:
+            for v in sorted(nvm_dir.iterdir(), reverse=True)[:5]:
+                candidates.append(str(v / "bin"))
+        except OSError:
+            pass
+
+    existing = os.environ.get("PATH", "")
+    extra = ":".join(d for d in candidates if d not in existing and Path(d).is_dir())
+    if extra:
+        os.environ["PATH"] = extra + ":" + existing
+
+
 def start_watcher(output: Path, poll_interval: int = 5) -> None:
     """Main loop. Writes PID file, polls for new transcripts, processes them.
 
@@ -136,18 +189,7 @@ def start_watcher(output: Path, poll_interval: int = 5) -> None:
     PID_PATH = output / ".watcher.pid"
     HEALTH_PATH = output / ".watcher-health.json"
 
-    # launchd gives a minimal PATH. Ask the login shell for the real one so
-    # tools like claude that live in npm/homebrew/local bin dirs are reachable.
-    try:
-        shell = os.environ.get("SHELL", "/bin/zsh")
-        result = subprocess.run(
-            [shell, "-l", "-c", "echo $PATH"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            os.environ["PATH"] = result.stdout.strip()
-    except Exception:
-        pass
+    _enrich_path_for_launchd()
 
     # Write PID file
     PID_PATH.write_text(str(os.getpid()))
