@@ -56,6 +56,24 @@ Magpie.app will be in `~/Applications/`.
 - **System Only** — records everything playing through your Mac (calls, videos)
 - **Mic + System** — both sides of the conversation (recommended for calls with headphones)
 
+## Customizing summaries
+
+On first run, the watcher creates `_summary-prompt.md` in your output folder. Edit it to change how summaries are written — tone, length, what to extract.
+
+```
+_summary-prompt.md          ← sorts to top, open and edit in Obsidian
+2026-04-28-team-sync.md
+2026-04-28-team-sync.summary.md
+```
+
+The file has a short header explaining the format, then the prompt itself. Everything below the second `---` is sent to Claude along with the transcript. Changes take effect on the next processing run (no restart needed).
+
+Examples of what you can tune:
+- Summary length ("one sentence" vs "3-5 sentences")
+- Number of topics extracted
+- Output language
+- Focus areas ("focus on action items and owners")
+
 ## Updating
 
 **If you use Claude Code**, run from any session:
