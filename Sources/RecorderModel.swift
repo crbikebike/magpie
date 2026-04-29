@@ -50,6 +50,11 @@ enum SystemAudioStatus: Equatable {
 
 // MARK: - RecorderModel
 
+extension Notification.Name {
+    static let willRequestSysAudioPermission = Notification.Name("RecorderModel.willRequestSysAudioPermission")
+    static let didRequestSysAudioPermission  = Notification.Name("RecorderModel.didRequestSysAudioPermission")
+}
+
 class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     @Published var isRecording = false
     @Published var activeTranscriptions = 0
@@ -189,8 +194,12 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
 
     func requestSysAudioPermission() {
         hasRequestedSysAudioPermission = true
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-            NSWorkspace.shared.open(url)
+        // Lower the onboarding panel level before probing so the TCC dialog
+        // appears in front of it, then restore after the async call returns.
+        NotificationCenter.default.post(name: .willRequestSysAudioPermission, object: nil)
+        Task { @MainActor in
+            sysAudioPermission = await SystemAudioSession.probePermission()
+            NotificationCenter.default.post(name: .didRequestSysAudioPermission, object: nil)
         }
     }
 

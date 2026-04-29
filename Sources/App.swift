@@ -51,6 +51,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recorder.installWatcherAgent()
         }
 
+        // When the user explicitly requests system audio permission, lower the
+        // onboarding panel so the TCC dialog appears in front of it.
+        NotificationCenter.default.addObserver(forName: .willRequestSysAudioPermission, object: nil, queue: .main) { [weak self] _ in
+            self?.onboardingPanel?.level = .normal
+        }
+        NotificationCenter.default.addObserver(forName: .didRequestSysAudioPermission, object: nil, queue: .main) { [weak self] _ in
+            self?.onboardingPanel?.level = .floating
+        }
+
         // Recording indicator: swap icon while recording.
         // contentTintColor on template images causes full transparency on macOS 14+.
         // Instead, swap to a non-template filled symbol with explicit palette color.
