@@ -38,6 +38,25 @@ _SUMMARY_STATUS = frozenset({"complete", "pending"})
 # Haiku is sufficient for these — no need for Opus-level reasoning.
 _EXTRACTION_MODEL = "claude-haiku-4-5-20251001"
 
+# Filename for the editable summary prompt in the output folder.
+SUMMARY_PROMPT_FILENAME = "_summary-prompt.md"
+
+# Default prompt — also written to SUMMARY_PROMPT_FILENAME on first run.
+_DEFAULT_SUMMARY_PROMPT = (
+    "Summarize this meeting. Return ONLY valid JSON:\n"
+    '{"summary": "3-5 sentence summary. Active voice, numbers first, no filler.",\n'
+    ' "topics": ["One sentence describing what was discussed or decided", ...]}\n'
+    "Rules:\n"
+    "- Active voice, direct. No passive constructions.\n"
+    "- Numbers first: \"3 decisions\" not \"several decisions.\"\n"
+    "- Extract 3-7 topics — the most important things discussed or decided in this meeting.\n"
+    "- One sentence each. No owner names, no categories, no priority levels.\n"
+    "- Focus on what matters: decisions made, problems raised, commitments given."
+)
+
+# Runtime prompt — overridden in start_watcher() from the prompt file.
+_SUMMARY_PROMPT: str = _DEFAULT_SUMMARY_PROMPT
+
 # launchd user agent label for the transcript watcher.
 _PLIST_LABEL = "com.crbikebike.magpie.watcher"
 
@@ -122,6 +141,36 @@ def deslugify(filename_stem: str) -> str:
         return "Untitled"
     words = filename_stem.split("-")
     return " ".join(w.title() for w in words if w) or "Untitled"
+
+
+def _load_or_create_summary_prompt(output_dir: Path) -> str:
+    """Load the summary prompt from the output folder, creating it if absent.
+
+    Reads SUMMARY_PROMPT_FILENAME (_summary-prompt.md). If the file has YAML
+    frontmatter (--- ... ---), strips it and returns the body. Creates the file
+    with _DEFAULT_SUMMARY_PROMPT if it doesn't exist yet.
+    """
+    path = output_dir / SUMMARY_PROMPT_FILENAME
+    if path.exists():
+        content = path.read_text(encoding="utf-8")
+        if content.startswith("---"):
+            # Match YAML frontmatter: --- on its own line as opener and closer
+            match = re.match(r"^---\n.*?\n---\n", content, re.DOTALL)
+            if match:
+                return content[match.end():].strip()
+        return content.strip()
+    file_content = (
+        "---\n"
+        "Magpie summary prompt — edit below the second --- to customize how meetings\n"
+        "are summarized. The full transcript is sent to Claude with this prompt.\n"
+        "Changes take effect on the next processing run (bounce the watcher).\n"
+        "---\n\n"
+        + _DEFAULT_SUMMARY_PROMPT
+        + "\n"
+    )
+    path.write_text(file_content, encoding="utf-8")
+    print(f"[WATCHER] Created {SUMMARY_PROMPT_FILENAME} with default prompt")
+    return _DEFAULT_SUMMARY_PROMPT
 
 
 def _enrich_path_for_launchd() -> None:
@@ -211,6 +260,9 @@ def start_watcher(output: Path, poll_interval: int = 5) -> None:
     # Ensure directories exist
     output.mkdir(parents=True, exist_ok=True)
     (output / "inbox" / AUDIO_DIR_NAME).mkdir(parents=True, exist_ok=True)
+
+    global _SUMMARY_PROMPT
+    _SUMMARY_PROMPT = _load_or_create_summary_prompt(output)
 
     known_files: set = set()
     failure_counts: dict = {}
@@ -325,6 +377,8 @@ def poll_new_transcripts(known_files: set, output_dir: Path = None) -> list:
         if not entry.endswith(".md"):
             continue
         if entry.endswith(".summary.md"):      # skip sidecars
+            continue
+        if entry.startswith("_"):              # skip config/internal files
             continue
         if entry in known_files:
             continue
@@ -601,17 +655,7 @@ def generate_summary(transcript_path: Path) -> tuple:
         Tuple of (summary_text, list_of_topic_strings).
         Either can be None/empty on failure.
     """
-    prompt = (
-        "Summarize this meeting. Return ONLY valid JSON:\n"
-        '{"summary": "3-5 sentence summary. Active voice, numbers first, no filler.",\n'
-        ' "topics": ["One sentence describing what was discussed or decided", ...]}\n'
-        "Rules:\n"
-        "- Active voice, direct. No passive constructions.\n"
-        "- Numbers first: \"3 decisions\" not \"several decisions.\"\n"
-        "- Extract 3-7 topics — the most important things discussed or decided in this meeting.\n"
-        "- One sentence each. No owner names, no categories, no priority levels.\n"
-        "- Focus on what matters: decisions made, problems raised, commitments given."
-    )
+    prompt = _SUMMARY_PROMPT
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8", errors="replace")
