@@ -78,6 +78,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>1.0.0</string>
     <key>CFBundleExecutable</key>
     <string>Magpie</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSUIElement</key>
@@ -125,6 +127,38 @@ mkdir -p "$RESOURCES_DEST"
 cp "$REPO_ROOT/Resources/raven.svg" "$RESOURCES_DEST/"
 cp "$REPO_ROOT/bin/watcher.py" "$RESOURCES_DEST/"
 ok "Resources bundled: raven.svg, watcher.py"
+
+# ── App Icon ─────────────────────────────────────────────────────────────────
+
+SVG_SRC="$REPO_ROOT/Resources/raven.svg"
+ICONSET_DIR="$(mktemp -d)/AppIcon.iconset"
+ICNS_DEST="$RESOURCES_DEST/AppIcon.icns"
+mkdir -p "$ICONSET_DIR"
+
+render_svg() {
+    local size=$1
+    local out=$2
+    if command -v rsvg-convert &>/dev/null; then
+        rsvg-convert -w "$size" -h "$size" "$SVG_SRC" -o "$out"
+    else
+        sips -s format png -z "$size" "$size" "$SVG_SRC" --out "$out" &>/dev/null
+    fi
+}
+
+render_svg 16   "$ICONSET_DIR/icon_16x16.png"
+render_svg 32   "$ICONSET_DIR/icon_16x16@2x.png"
+render_svg 32   "$ICONSET_DIR/icon_32x32.png"
+render_svg 64   "$ICONSET_DIR/icon_32x32@2x.png"
+render_svg 128  "$ICONSET_DIR/icon_128x128.png"
+render_svg 256  "$ICONSET_DIR/icon_128x128@2x.png"
+render_svg 256  "$ICONSET_DIR/icon_256x256.png"
+render_svg 512  "$ICONSET_DIR/icon_256x256@2x.png"
+render_svg 512  "$ICONSET_DIR/icon_512x512.png"
+render_svg 1024 "$ICONSET_DIR/icon_512x512@2x.png"
+
+iconutil -c icns "$ICONSET_DIR" -o "$ICNS_DEST"
+rm -rf "$(dirname "$ICONSET_DIR")"
+ok "App icon: AppIcon.icns"
 
 # ── Signing ──────────────────────────────────────────────────────────────────
 # Apple Development signing preserves TCC permissions across rebuilds.
