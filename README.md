@@ -15,17 +15,28 @@ Plus a monthly index: `2026-04.yaml` — a list of all meetings with titles, sum
 
 ## Install
 
-```bash
-brew install --cask crbikebike/tap/magpie
+Build from source — this avoids macOS Gatekeeper entirely since the binary is compiled on your machine.
+
+**If you use Claude Code**, open a session anywhere and run:
+
+```
+/install-magpie
 ```
 
-Then install dependencies:
+That command handles everything: clones the repo, installs dependencies, and builds the app.
+
+**Or build manually:**
 
 ```bash
+# Prerequisites
 brew install yap
+# Claude Code must be installed and authenticated (claude on your PATH)
+
+git clone https://github.com/crbikebike/magpie.git ~/magpie
+bash ~/magpie/bin/build.sh
 ```
 
-Claude Code must be installed and authenticated (`claude` on your PATH). Magpie uses it to generate summaries.
+Magpie.app will be in `~/Applications/`.
 
 ## First launch
 
@@ -47,11 +58,17 @@ Claude Code must be installed and authenticated (`claude` on your PATH). Magpie 
 
 ## Updating
 
-```bash
-brew upgrade --cask magpie
+**If you use Claude Code**, run from any session:
+
+```
+/update-magpie
 ```
 
-After an update, you may need to re-grant **Screen & System Audio Recording** in System Settings → Privacy & Security.
+**Or manually:**
+
+```bash
+cd ~/magpie && git pull && bash bin/build.sh
+```
 
 ## Requirements
 
