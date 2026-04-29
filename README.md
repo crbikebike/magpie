@@ -70,6 +70,16 @@ Magpie.app will be in `~/Applications/`.
 cd ~/magpie && git pull && bash bin/build.sh
 ```
 
+## Pairing with a knowledge base
+
+Magpie outputs plain markdown. It works well as the capture layer for a larger system. A few setups worth considering instead of Notion:
+
+- **[AI-Native Obsidian Vault](https://curiouslychase.com/posts/ai-native-obsidian-vault-setup-guide/)** — point your output folder at an Obsidian vault and use this setup guide to structure it as a living knowledge base. Claude Code handles synthesis, tagging, and cross-linking across your notes.
+
+- **[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Karpathy's pattern for a persistent, LLM-maintained wiki. Feed meeting transcripts in; the LLM synthesizes them into interlinked pages that compound over time rather than piling up as raw files.
+
+- **[Synthadoc](https://github.com/axoviq-ai/synthadoc)** — open-source wiki engine that transforms documents into a searchable, cross-linked knowledge graph at ingest time. Drop your `.md` transcripts in and get automatic linking and contradiction detection.
+
 ## Requirements
 
 - macOS 14.4+
