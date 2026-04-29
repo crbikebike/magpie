@@ -17,26 +17,24 @@ Plus a monthly index: `2026-04.yaml` — a list of all meetings with titles, sum
 
 Build from source — this avoids macOS Gatekeeper entirely since the binary is compiled on your machine.
 
-**If you use Claude Code**, open a session anywhere and run:
-
-```
-/install-magpie
-```
-
-That command handles everything: clones the repo, installs dependencies, and builds the app.
-
-**Or build manually:**
+**1. Clone the repo:**
 
 ```bash
-# Prerequisites
-brew install yap
-# Claude Code must be installed and authenticated (claude on your PATH)
-
 git clone https://github.com/crbikebike/magpie.git ~/magpie
+```
+
+**2. Install dependencies and build:**
+
+```bash
+brew install yap
 bash ~/magpie/bin/build.sh
 ```
 
+Claude Code must be installed and authenticated (`claude` on your PATH) for transcription and summaries to work.
+
 Magpie.app will be in `~/Applications/`.
+
+> **Claude Code users:** once the repo is cloned, open a session inside `~/magpie` and use `/install-magpie` to handle steps 2 and above, or `/update-magpie` for future updates.
 
 ## First launch
 
