@@ -99,7 +99,7 @@ struct OnboardingView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("Not selected")
+                    Text("Not configured")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

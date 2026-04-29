@@ -92,7 +92,6 @@ struct RecorderView: View {
             if model.vaultPath != nil {
                 Divider()
                 watcherStatusRow
-                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
             }
         }
