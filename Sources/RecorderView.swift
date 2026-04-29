@@ -372,9 +372,9 @@ struct RecorderView: View {
                     .font(.caption2)
                     .foregroundColor(MagpieColors.pencil)
                 if let vault = model.vaultPath {
-                    Text(vault.lastPathComponent)
+                    Text(vault.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                         .font(.caption)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 } else {
                     Text("Not configured")
                         .font(.caption)

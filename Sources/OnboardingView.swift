@@ -94,10 +94,10 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Output Folder").font(.callout).fontWeight(.medium)
                 if let vault = model.vaultPath {
-                    Text(vault.lastPathComponent)
+                    Text(vault.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 } else {
                     Text("Not configured")
                         .font(.caption)
