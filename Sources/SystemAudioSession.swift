@@ -25,91 +25,23 @@ final class SystemAudioSession: NSObject, RecordingSession {
 
     // MARK: - Permission Management
 
-    /// UserDefaults keys persisting TCC grant state and the binary date at grant time.
     static let permissionGrantedKey = "sysAudioPermissionGranted"
-    static let permissionBinaryDateKey = "sysAudioPermissionBinaryDate"
 
     enum Permission { case notDetermined, authorized, denied }
 
-    /// Return the binary's modification date, or nil if unavailable.
-    private static func binaryModificationDate() -> Date? {
-        guard let url = Bundle.main.executableURL,
-              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let date = attrs[.modificationDate] as? Date else { return nil }
-        return date
-    }
-
-    /// Persist the current binary date alongside the permission grant.
-    private static func storeBinaryDate() {
-        guard let date = binaryModificationDate() else { return }
-        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: permissionBinaryDateKey)
-    }
-
-    /// Read permission from UserDefaults, clearing it if the binary has been rebuilt
-    /// since the grant was recorded. No live TCC call — never triggers a system prompt.
     static func currentPermission() -> Permission {
-        guard UserDefaults.standard.bool(forKey: permissionGrantedKey) else {
-            return .notDetermined
-        }
-        // If the binary changed, TCC may have been reset by macOS.
-        // Return .notDetermined but leave UserDefaults intact — refreshPermissions()
-        // will probe silently and probePermission() will clear/update UserDefaults.
-        if let current = binaryModificationDate() {
-            let stored = UserDefaults.standard.double(forKey: permissionBinaryDateKey)
-            if stored == 0 || abs(current.timeIntervalSince1970 - stored) > 1 {
-                return .notDetermined
-            }
-        }
-        return .authorized
+        UserDefaults.standard.bool(forKey: permissionGrantedKey) ? .authorized : .notDetermined
     }
 
-    /// Live-probe TCC state by asking SCShareableContent.
-    /// Safe to call when we think we have permission (won't show a dialog in that case).
-    /// Will show the TCC dialog on first use or after a TCC reset.
     static func probePermission() async -> Permission {
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             UserDefaults.standard.set(true, forKey: permissionGrantedKey)
-            storeBinaryDate()
             return .authorized
         } catch {
             UserDefaults.standard.removeObject(forKey: permissionGrantedKey)
-            UserDefaults.standard.removeObject(forKey: permissionBinaryDateKey)
             return .notDetermined
         }
-    }
-
-    /// Trigger macOS TCC prompt via SCShareableContent. Persists result to UserDefaults.
-    /// Returns the resolved permission.
-    ///
-    /// Runs the async SCShareableContent call on a background queue to avoid
-    /// deadlocking the main thread (Task + semaphore on main = deadlock).
-    @discardableResult
-    static func requestPermission() -> Permission {
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: Permission = .denied
-
-        // Must dispatch to a background queue — SCShareableContent is async and
-        // the semaphore would deadlock if waited on the main thread.
-        DispatchQueue.global(qos: .userInitiated).async {
-            let group = DispatchGroup()
-            group.enter()
-            Task {
-                do {
-                    _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-                    UserDefaults.standard.set(true, forKey: permissionGrantedKey)
-                    SystemAudioSession.storeBinaryDate()
-                    result = .authorized
-                } catch {
-                    result = .denied
-                }
-                group.leave()
-            }
-            group.wait()
-            semaphore.signal()
-        }
-        semaphore.wait()
-        return result
     }
 
     // MARK: - RecordingSession
@@ -150,7 +82,6 @@ final class SystemAudioSession: NSObject, RecordingSession {
                 self.stream = stream
                 self.isCapturing = true
                 UserDefaults.standard.set(true, forKey: SystemAudioSession.permissionGrantedKey)
-                SystemAudioSession.storeBinaryDate()
             } catch {
                 startError = error
             }
