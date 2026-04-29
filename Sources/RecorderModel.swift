@@ -104,6 +104,16 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         super.init()
         loadVaultPath()
         refreshPermissions()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidBecomeActive() {
+        refreshPermissions()
     }
 
     // MARK: - Vault
@@ -160,6 +170,11 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
         sysAudioPermission = SystemAudioSession.currentPermission()
+        if sysAudioPermission != .authorized {
+            Task { @MainActor in
+                self.sysAudioPermission = await SystemAudioSession.probePermission()
+            }
+        }
     }
 
     func requestMicPermission() {
