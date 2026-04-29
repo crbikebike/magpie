@@ -25,6 +25,11 @@ struct OnboardingView: View {
 
             Divider()
 
+            // Output folder row
+            vaultRow
+
+            Divider()
+
             // Mic permission card
             permissionCard(
                 icon: "mic.fill",
@@ -48,11 +53,6 @@ struct OnboardingView: View {
                     action: { model.requestSysAudioPermission() }
                 )
             }
-
-            Divider()
-
-            // Output folder row
-            vaultRow
 
             Divider()
 
