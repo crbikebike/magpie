@@ -51,13 +51,12 @@ final class SystemAudioSession: NSObject, RecordingSession {
         guard UserDefaults.standard.bool(forKey: permissionGrantedKey) else {
             return .notDetermined
         }
-        // If the binary changed since permission was granted, TCC was reset by macOS.
-        // Clear the stale entry so onboarding shows Enable instead of Done.
+        // If the binary changed, TCC may have been reset by macOS.
+        // Return .notDetermined but leave UserDefaults intact — refreshPermissions()
+        // will probe silently and probePermission() will clear/update UserDefaults.
         if let current = binaryModificationDate() {
             let stored = UserDefaults.standard.double(forKey: permissionBinaryDateKey)
             if stored == 0 || abs(current.timeIntervalSince1970 - stored) > 1 {
-                UserDefaults.standard.removeObject(forKey: permissionGrantedKey)
-                UserDefaults.standard.removeObject(forKey: permissionBinaryDateKey)
                 return .notDetermined
             }
         }
@@ -65,8 +64,8 @@ final class SystemAudioSession: NSObject, RecordingSession {
     }
 
     /// Live-probe TCC state by asking SCShareableContent.
-    /// Only call this when the user has explicitly requested permission — calling
-    /// it silently in the background can trigger a macOS system prompt.
+    /// Safe to call when we think we have permission (won't show a dialog in that case).
+    /// Will show the TCC dialog on first use or after a TCC reset.
     static func probePermission() async -> Permission {
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
