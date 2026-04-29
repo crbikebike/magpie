@@ -159,12 +159,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
 
     func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
-        let probe = SystemAudioSession.currentPermission()
-        if probe == .denied {
-            sysAudioPermission = .denied
-        } else {
-            sysAudioPermission = .authorized
-        }
+        sysAudioPermission = SystemAudioSession.currentPermission()
     }
 
     func requestMicPermission() {
