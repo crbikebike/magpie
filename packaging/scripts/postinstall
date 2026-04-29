@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# postinstall — Run by macOS Installer after copying Magpie.app to /Applications.
+#
+# Removes Gatekeeper quarantine attributes so the app launches without
+# "unidentified developer" warnings on the first open.
+
+set -euo pipefail
+
+APP="/Applications/Magpie.app"
+
+if [ -d "$APP" ]; then
+    xattr -cr "$APP" 2>/dev/null || true
+fi
+
+exit 0
