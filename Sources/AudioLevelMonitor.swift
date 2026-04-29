@@ -1,5 +1,5 @@
 // Sources/AudioLevelMonitor.swift
-// Aperture — Timer-based audio level polling.
+// Magpie — Timer-based audio level polling.
 //
 // Polls a RecordingSession's averagePowerLinear() on a repeating timer and
 // delivers the result to a callback on the main queue.

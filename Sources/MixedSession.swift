@@ -1,5 +1,5 @@
 // Sources/MixedSession.swift
-// Aperture — Mic + system audio as dual independent streams into one CAF file.
+// Magpie — Mic + system audio as dual independent streams into one CAF file.
 //
 // Architecture (dual-stream, no mixer graph):
 //   Mic:    engine.inputNode.installTap → writeBuffer() ──┐
@@ -126,7 +126,7 @@ final class MixedSession: NSObject, RecordingSession, SCStreamOutput, SCStreamDe
         let content = try await SCShareableContent.excludingDesktopWindows(false,
                                                                            onScreenWindowsOnly: false)
         guard let display = content.displays.first else {
-            throw NSError(domain: "Aperture", code: -1,
+            throw NSError(domain: "com.crbikebike.magpie", code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "No display found for system audio capture"])
         }
 

@@ -1,5 +1,5 @@
 // Sources/SystemAudioSession.swift
-// Aperture — System audio capture via ScreenCaptureKit.
+// Magpie — System audio capture via ScreenCaptureKit.
 //
 // Requires macOS 14.4+ and "Screen & System Audio Recording" TCC permission.
 // SCStream with capturesAudio=true delivers CMSampleBuffers directly to AVAudioFile.
@@ -83,7 +83,7 @@ final class SystemAudioSession: NSObject, RecordingSession {
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
                 guard let display = content.displays.first else {
-                    throw NSError(domain: "Aperture", code: -1,
+                    throw NSError(domain: "com.crbikebike.magpie", code: -1,
                         userInfo: [NSLocalizedDescriptionKey: "No display found for system audio capture"])
                 }
 

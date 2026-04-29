@@ -1,5 +1,5 @@
 // Sources/MicSession.swift
-// Aperture — Microphone capture session using AVAudioRecorder.
+// Magpie — Microphone capture session using AVAudioRecorder.
 //
 // AVAudioRecorder is the correct API for mic-only recording:
 //   • Handles hardware format negotiation internally

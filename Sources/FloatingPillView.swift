@@ -1,5 +1,5 @@
 // Sources/FloatingPillView.swift
-// Aperture — SwiftUI content for the floating recording pill.
+// Magpie — SwiftUI content for the floating recording pill.
 //
 // Compact horizontal capsule with pulsing red dot, elapsed time,
 // audio level bars (reuses EqualizerView), and stop button.

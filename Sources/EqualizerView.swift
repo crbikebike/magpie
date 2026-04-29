@@ -1,5 +1,5 @@
 // Sources/EqualizerView.swift
-// Aperture — Animated 5-bar equalizer visualisation.
+// Magpie — Animated 5-bar equalizer visualisation.
 //
 // Driven by a Float level (0..1) sourced from AudioLevelMonitor.
 // Bars animate independently via sine-wave phase offsets.

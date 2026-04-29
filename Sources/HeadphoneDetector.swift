@@ -1,5 +1,5 @@
 // Sources/HeadphoneDetector.swift
-// Aperture — Default output device transport type detection.
+// Magpie — Default output device transport type detection.
 //
 // Single-purpose module: reads CoreAudio's default output device transport type
 // to determine if headphones are connected. Used by RecorderView to offer the

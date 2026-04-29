@@ -1,5 +1,5 @@
 // Sources/AudioConverter.swift
-// Aperture — CAF-to-M4A conversion for system audio recordings.
+// Magpie — CAF-to-M4A conversion for system audio recordings.
 //
 // SystemAudioSession and MixedSession record to CAF (AVAudioEngine writes PCM).
 // After stop(), RecorderModel converts CAF→M4A before passing to Yap.
@@ -15,7 +15,7 @@ func convertCAFtoM4A(src: URL, dst: URL) async throws {
         asset: asset, presetName: AVAssetExportPresetAppleM4A
     ) else {
         throw NSError(
-            domain: "Aperture",
+            domain: "com.crbikebike.magpie",
             code: -1,
             userInfo: [NSLocalizedDescriptionKey: "Could not create export session for \(src.lastPathComponent)"]
         )

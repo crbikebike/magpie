@@ -13,6 +13,7 @@ let package = Package(
                 "RecorderView.swift",
                 "OnboardingView.swift",
                 "EqualizerView.swift",
+                "FloatingPillView.swift",
             ]
         ),
     ]

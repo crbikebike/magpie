@@ -1,5 +1,5 @@
 // Sources/FloatingPillWindow.swift
-// Aperture — Floating pill window for always-visible recording controls.
+// Magpie — Floating pill window for always-visible recording controls.
 //
 // An NSPanel subclass that provides an independent, always-on-top recording
 // indicator excluded from screen shares. Position persisted via UserDefaults.
