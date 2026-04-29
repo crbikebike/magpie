@@ -71,6 +71,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     // System audio state
     @Published var sysAudioPermission: SystemAudioSession.Permission = .notDetermined
     private var hasRequestedSysAudioPermission = false
+    private var startupSysAudioProbeScheduled = false
     @Published var showFirstRecordingConfirmation = false
     @Published var headphoneNudgeDismissed = false
     @Published var systemAudioStatus: SystemAudioStatus = .notApplicable {
@@ -176,9 +177,18 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     func refreshPermissions() {
         micPermission = AVCaptureDevice.authorizationStatus(for: .audio)
         sysAudioPermission = SystemAudioSession.currentPermission()
-        if hasRequestedSysAudioPermission && sysAudioPermission != .authorized {
+
+        // Probe when user explicitly requested it (returning from Settings).
+        // Also probe once at startup — silent if TCC has the grant, shows dialog
+        // if TCC was reset. The panel level notification ensures any dialog appears
+        // in front of the onboarding panel.
+        let needsStartupProbe = !startupSysAudioProbeScheduled && sysAudioPermission != .authorized
+        if hasRequestedSysAudioPermission || needsStartupProbe {
+            startupSysAudioProbeScheduled = true
+            NotificationCenter.default.post(name: .willRequestSysAudioPermission, object: nil)
             Task { @MainActor in
                 self.sysAudioPermission = await SystemAudioSession.probePermission()
+                NotificationCenter.default.post(name: .didRequestSysAudioPermission, object: nil)
             }
         }
     }
