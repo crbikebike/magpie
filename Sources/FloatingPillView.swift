@@ -1,64 +1,64 @@
 // Sources/FloatingPillView.swift
-// Magpie — SwiftUI content for the floating recording pill.
+// Magpie — Floating recording pill.
 //
-// Compact horizontal capsule with pulsing red dot, elapsed time,
-// audio level bars (reuses EqualizerView), and stop button.
+// Raven icon | pulsing dot | mm:ss | stop (or spinner when transcribing)
 
+import AppKit
 import SwiftUI
 
 struct FloatingPillView: View {
     @EnvironmentObject var model: RecorderModel
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            ravenIcon
             pulsingDot
-            elapsedLabel
-
-            EqualizerView(level: model.audioLevel)
-                .frame(width: 23, height: 18)
-
+            timerLabel
             if model.isTranscribing {
                 ProgressView()
                     .controlSize(.small)
-                Text("Transcribing...")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(MagpieColors.pencil)
             } else {
                 stopButton
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(.ultraThinMaterial))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Magpie recording in progress, \(model.elapsedSeconds) seconds")
+        .accessibilityLabel("Magpie recording, \(model.elapsedSeconds / 60)m \(model.elapsedSeconds % 60)s")
         .accessibilityAddTraits(.isHeader)
-        .help("Others should know you're recording")
     }
 
-    // Oscillates opacity 0.3↔1.0 while recording via repeatForever.
-    // When isRecording flips to true, SwiftUI animates between the prior
-    // opacity (0.3) and current (1.0) with a 1s ease-in-out cycle.
+    private var ravenIcon: some View {
+        Group {
+            if let url = Bundle.main.url(forResource: "raven", withExtension: "svg"),
+               let img = NSImage(contentsOf: url) {
+                Image(nsImage: img)
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundColor(.secondary)
+                    .frame(width: 14, height: 14)
+            }
+        }
+    }
+
     private var pulsingDot: some View {
         Circle()
             .fill(MagpieColors.recordingRed)
-            .frame(width: 8, height: 8)
+            .frame(width: 7, height: 7)
             .opacity(model.isRecording ? 1.0 : 0.3)
             .animation(
                 model.isRecording
-                    ? Animation.easeInOut(duration: 1).repeatForever(autoreverses: true)
+                    ? .easeInOut(duration: 1).repeatForever(autoreverses: true)
                     : .default,
                 value: model.isRecording
             )
     }
 
-    private var elapsedLabel: some View {
-        let minutes = model.elapsedSeconds / 60
-        let seconds = model.elapsedSeconds % 60
-        return Text(String(format: "%02d:%02d", minutes, seconds))
+    private var timerLabel: some View {
+        let m = model.elapsedSeconds / 60
+        let s = model.elapsedSeconds % 60
+        return Text(String(format: "%02d:%02d", m, s))
             .font(.system(size: 13, weight: .medium, design: .monospaced))
             .monospacedDigit()
             .foregroundColor(.primary)
@@ -67,7 +67,7 @@ struct FloatingPillView: View {
     private var stopButton: some View {
         Button(action: { model.stopRecording() }) {
             Image(systemName: "stop.circle.fill")
-                .font(.system(size: 18))
+                .font(.system(size: 17))
                 .foregroundColor(MagpieColors.recordingRed)
         }
         .buttonStyle(.plain)

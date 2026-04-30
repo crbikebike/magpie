@@ -11,11 +11,13 @@ final class FloatingPillWindow: NSPanel {
     // UserDefaults key for persisted position
     static let positionKey = "floatingPillOrigin"
 
-    // Default position: top-right, 80pt from right edge, 60pt from top
-    static func defaultOrigin(for screen: NSScreen) -> NSPoint {
-        let frame = screen.visibleFrame
-        let x = frame.maxX - 80 - 300  // 80pt from right edge, accounting for pill width
-        let y = frame.maxY - 60        // 60pt from top
+    // Default position: top-right, 80pt from right edge, 60pt from top.
+    // Uses actual frame width when available (post-layout); falls back to 160pt estimate.
+    func defaultOrigin(for screen: NSScreen) -> NSPoint {
+        let visible = screen.visibleFrame
+        let pillWidth = frame.width > 0 ? frame.width : 160
+        let x = visible.maxX - 80 - pillWidth
+        let y = visible.maxY - 60
         return NSPoint(x: x, y: y)
     }
 
@@ -63,14 +65,14 @@ final class FloatingPillWindow: NSPanel {
     /// TestFloatingPill.swift, which compiles in the same module.
     func loadPosition() -> NSPoint {
         guard let stored = UserDefaults.standard.string(forKey: Self.positionKey) else {
-            return Self.defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
+            return defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
         }
 
         let parts = stored.split(separator: ",")
         guard parts.count == 2,
               let x = Double(parts[0]),
               let y = Double(parts[1]) else {
-            return Self.defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
+            return defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
         }
 
         let point = NSPoint(x: x, y: y)
