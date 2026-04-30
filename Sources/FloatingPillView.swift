@@ -14,12 +14,7 @@ struct FloatingPillView: View {
             ravenIcon
             pulsingDot
             timerLabel
-            if model.isTranscribing {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                stopButton
-            }
+            stopButton
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)

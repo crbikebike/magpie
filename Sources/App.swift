@@ -118,13 +118,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pillWindow = pill
 
         // Show pill when recording starts; hide when recording AND transcribing both finish.
-        // isTranscribing is a computed property, so use objectWillChange instead of $isTranscribing.
         pillVisibilityCancellable = recorder.$isRecording
-            .combineLatest(recorder.objectWillChange.map { [weak self] _ in self?.recorder.isTranscribing ?? false })
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] (isRecording, isTranscribing) in
+            .sink { [weak self] isRecording in
                 guard let self, let pill = self.pillWindow else { return }
-                if isRecording || isTranscribing {
+                if isRecording {
                     pill.showPill()
                 } else {
                     pill.hidePill()
