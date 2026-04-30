@@ -651,9 +651,15 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             if let m4a = convertedM4A {
                 try? FileManager.default.removeItem(at: m4a)
             }
+            let isTCCError = error.localizedDescription.contains("CancellationError")
             DispatchQueue.main.async {
                 self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
-                self.statusMessage = "Transcription failed: \(error.localizedDescription)"
+                if isTCCError {
+                    self.statusMessage = "Transcription failed: speech recognition permission lost"
+                    self.showVoiceControlFixAlert()
+                } else {
+                    self.statusMessage = "Transcription failed: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -665,5 +671,26 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func showVoiceControlFixAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Speech Recognition Permission Lost"
+        alert.informativeText = """
+            macOS revoked yap's speech recognition permission (a known macOS Tahoe bug with ad-hoc signed apps).
+
+            Fix — takes 10 seconds:
+            1. Open System Settings → Accessibility → Voice Control
+            2. Toggle Voice Control ON
+            3. Toggle it back OFF
+
+            That restores the permission. Your next recording will transcribe normally.
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Accessibility Settings")
+        alert.addButton(withTitle: "Dismiss")
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess")!)
+        }
     }
 }
