@@ -57,16 +57,26 @@ struct OnboardingView: View {
             Divider()
 
             // Done button — requires vault + mic; system audio is optional
-            Button {
-                model.showOnboarding = false
-                model.refreshPermissions()
-                onDone?()
-            } label: {
-                Text("Done")
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 8) {
+                Button {
+                    model.showOnboarding = false
+                    model.refreshPermissions()
+                    onDone?()
+                } label: {
+                    Text("Done")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(model.vaultPath == nil || model.micPermission != .authorized)
+
+                Button {
+                    model.showOnboarding = false
+                } label: {
+                    Text("Close")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(model.vaultPath == nil || model.micPermission != .authorized)
             .padding(16)
         }
         .frame(width: 300)
