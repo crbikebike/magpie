@@ -15,8 +15,7 @@ final class FloatingPillWindow: NSPanel {
     // Uses actual frame width when available (post-layout); falls back to 160pt estimate.
     func defaultOrigin(for screen: NSScreen) -> NSPoint {
         let visible = screen.visibleFrame
-        let pillWidth = frame.width > 0 ? frame.width : 160
-        let x = visible.maxX - 80 - pillWidth
+        let x = visible.maxX - 80 - frame.width
         let y = visible.maxY - 60
         return NSPoint(x: x, y: y)
     }
