@@ -194,8 +194,19 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     func requestMicPermission() {
-        AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
-            DispatchQueue.main.async { self?.refreshPermissions() }
+        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+            DispatchQueue.main.async {
+                self?.refreshPermissions()
+                // On macOS Tahoe, requestAccess no longer shows an inline dialog —
+                // it opens System Settings and fires the completion with granted=false
+                // before the user has responded. Open the mic Settings page directly
+                // so they land in the right place.
+                if !granted {
+                    NSWorkspace.shared.open(
+                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
+                    )
+                }
+            }
         }
     }
 
