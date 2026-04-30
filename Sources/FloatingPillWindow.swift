@@ -49,14 +49,26 @@ final class FloatingPillWindow: NSPanel {
         orderOut(nil)
     }
 
-    /// Persist current origin to UserDefaults on drag end.
     override func mouseDragged(with event: NSEvent) {
         super.mouseDragged(with: event)
+        clampToScreen()
     }
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
+        clampToScreen()
         savePosition()
+    }
+
+    private func clampToScreen() {
+        let screen = NSScreen.screens.first(where: { $0.frame.contains(frame.origin) })
+                  ?? NSScreen.main
+                  ?? NSScreen.screens[0]
+        let visible = screen.visibleFrame
+        let clampedX = max(visible.minX, min(frame.origin.x, visible.maxX - frame.width))
+        let clampedY = max(visible.minY, min(frame.origin.y, visible.maxY - frame.height))
+        guard clampedX != frame.origin.x || clampedY != frame.origin.y else { return }
+        setFrameOrigin(NSPoint(x: clampedX, y: clampedY))
     }
 
     /// Load persisted origin, falling back to defaultOrigin.
