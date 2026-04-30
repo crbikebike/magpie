@@ -52,7 +52,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // When the user explicitly requests system audio permission, lower the
-        // onboarding panel so the TCC dialog appears in front of it.
+        // Lower the onboarding panel before any TCC dialog so it appears in front.
+        NotificationCenter.default.addObserver(forName: .willRequestMicPermission, object: nil, queue: .main) { [weak self] _ in
+            self?.onboardingPanel?.level = .normal
+        }
+        NotificationCenter.default.addObserver(forName: .didRequestMicPermission, object: nil, queue: .main) { [weak self] _ in
+            self?.onboardingPanel?.level = .floating
+        }
         NotificationCenter.default.addObserver(forName: .willRequestSysAudioPermission, object: nil, queue: .main) { [weak self] _ in
             self?.onboardingPanel?.level = .normal
         }
