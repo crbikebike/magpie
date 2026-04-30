@@ -85,7 +85,7 @@ final class FloatingPillWindow: NSPanel {
             return point
         }
 
-        return Self.defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
+        return defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
     }
 
     /// Save current origin to UserDefaults.
