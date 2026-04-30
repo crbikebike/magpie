@@ -12,7 +12,19 @@ Claude Code will handle everything below.
 
 You are setting up a Magpie meeting recorder alongside an LLM Wiki knowledge base. Complete all steps in order. Tell the user what you're doing as you go.
 
-### Step 1: Confirm macOS
+### Step 1: Confirm the working directory
+
+Run:
+
+```bash
+pwd
+```
+
+Tell the user the current directory and ask: **"This is where your wiki and Magpie transcripts will live. Is this the right folder, or would you like to use a different one?"**
+
+Wait for their response. If they want a different directory, ask them to provide the path, then use `cd` to move there before continuing. Confirm the final path before proceeding.
+
+### Step 2: Confirm macOS
 
 ```bash
 sw_vers -productVersion
@@ -20,7 +32,7 @@ sw_vers -productVersion
 
 If this is not macOS 14.4 or later, stop and tell the user.
 
-### Step 2: Install Homebrew (if missing)
+### Step 3: Install Homebrew (if missing)
 
 ```bash
 if ! command -v brew &>/dev/null; then
@@ -30,7 +42,7 @@ fi
 brew --version
 ```
 
-### Step 3: Install yap (if missing)
+### Step 4: Install yap (if missing)
 
 yap is the local speech-to-text engine Magpie uses.
 
@@ -41,7 +53,7 @@ fi
 yap --version
 ```
 
-### Step 4: Create the wiki directory structure
+### Step 5: Create the wiki directory structure
 
 Create the following in the current directory:
 
@@ -56,7 +68,7 @@ CLAUDE.md
 mkdir -p raw/Transcripts wiki
 ```
 
-### Step 5: Create wiki/index.md
+### Step 6: Create wiki/index.md
 
 ```markdown
 # Wiki Index
@@ -69,7 +81,7 @@ mkdir -p raw/Transcripts wiki
 
 Write that content to `wiki/index.md`.
 
-### Step 6: Create wiki/log.md
+### Step 7: Create wiki/log.md
 
 ```markdown
 # Log
@@ -79,7 +91,7 @@ Write that content to `wiki/index.md`.
 
 Write that content to `wiki/log.md`.
 
-### Step 7: Write CLAUDE.md
+### Step 8: Write CLAUDE.md
 
 Write the following to `CLAUDE.md` in the current directory:
 
@@ -144,7 +156,7 @@ Use the manifest for quick scanning before reading full transcripts.
 4. If the answer is worth keeping, write it as a new wiki page
 ```
 
-### Step 8: Clone and build Magpie
+### Step 9: Clone and build Magpie
 
 ```bash
 if [ ! -d "$HOME/magpie" ]; then
@@ -153,7 +165,7 @@ fi
 bash ~/magpie/bin/build.sh
 ```
 
-### Step 9: Tell the user what to do next
+### Step 10: Tell the user what to do next
 
 Tell the user:
 
