@@ -112,10 +112,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Create the FloatingPillWindow, wire it to RecorderModel state.
     private func setupPillWindow() {
         let pill = FloatingPillWindow()
-        pill.contentViewController = NSHostingController(
-            rootView: FloatingPillView().environmentObject(recorder)
-        )
-        pill.contentViewController?.view.frame = NSRect(x: 0, y: 0, width: 300, height: 40)
+        let pillVC = NSHostingController(rootView: FloatingPillView().environmentObject(recorder))
+        pillVC.sizingOptions = .preferredContentSize
+        pill.contentViewController = pillVC
         pillWindow = pill
 
         // Show pill when recording starts; hide when recording AND transcribing both finish.
