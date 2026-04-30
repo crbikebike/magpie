@@ -1,5 +1,7 @@
 # Magpie
 
+![Magpie](docs/banner.png)
+
 A magpie for your meetings. Collects what matters, leaves the rest.
 
 Records meetings, transcribes them with [yap](https://github.com/ggerganov/whisper.cpp), and auto-generates a summary + topic list using Claude.
@@ -13,30 +15,37 @@ For each recording, two files land in your output folder:
 
 Plus a monthly index: `2026-04.yaml` — a list of all meetings with titles, summaries, and topics. Designed for LLMs to read across.
 
+## Pairing with a knowledge base
+
+Magpie outputs plain markdown. It works well as the capture layer for a larger system. A few setups worth considering instead of Notion:
+
+- **[AI-Native Obsidian Vault](https://curiouslychase.com/posts/ai-native-obsidian-vault-setup-guide/)** — point your output folder at an Obsidian vault and use this setup guide to structure it as a living knowledge base. Claude Code handles synthesis, tagging, and cross-linking across your notes.
+
+- **[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Karpathy's pattern for a persistent, LLM-maintained wiki. Feed meeting transcripts in; the LLM synthesizes them into interlinked pages that compound over time rather than piling up as raw files.
+
+- **[Synthadoc](https://github.com/axoviq-ai/synthadoc)** — open-source wiki engine that transforms documents into a searchable, cross-linked knowledge graph at ingest time. Drop your `.md` transcripts in and get automatic linking and contradiction detection.
+
 ## Install
 
-Point a Claude Code session at this repo and ask it to install Magpie.
+1. Download **Magpie-Installer.pkg** from the [latest release](https://github.com/crbikebike/magpie/releases/latest)
+2. Right-click the file → **Open** (required on first run — the installer is self-signed)
+3. Follow the prompts
 
-Or, build manually:
+**After installing:**
 
-**1. Clone the repo:**
+- Install yap: `brew install yap`
+- Open Magpie from Applications
+- Choose your output folder and grant Microphone access
+
+**Requires macOS 14.4+, [Claude Code](https://claude.ai/code) installed and authenticated.**
+
+### Build from source
 
 ```bash
 git clone https://github.com/crbikebike/magpie.git ~/magpie
-```
-
-**2. Open a Claude Code session pointed at `~/magpie` and ask it to install Magpie.** It will find the install command and handle the rest.
-
-Or manually:
-
-```bash
 brew install yap
 bash ~/magpie/bin/build.sh
 ```
-
-Claude Code must be installed and authenticated (`claude` on your PATH) for transcription and summaries to work.
-
-Magpie.app will be in `~/Applications/`.
 
 ## First launch
 
@@ -87,19 +96,3 @@ Examples of what you can tune:
 ```bash
 cd ~/magpie && git pull && bash bin/build.sh
 ```
-
-## Pairing with a knowledge base
-
-Magpie outputs plain markdown. It works well as the capture layer for a larger system. A few setups worth considering instead of Notion:
-
-- **[AI-Native Obsidian Vault](https://curiouslychase.com/posts/ai-native-obsidian-vault-setup-guide/)** — point your output folder at an Obsidian vault and use this setup guide to structure it as a living knowledge base. Claude Code handles synthesis, tagging, and cross-linking across your notes.
-
-- **[LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Karpathy's pattern for a persistent, LLM-maintained wiki. Feed meeting transcripts in; the LLM synthesizes them into interlinked pages that compound over time rather than piling up as raw files.
-
-- **[Synthadoc](https://github.com/axoviq-ai/synthadoc)** — open-source wiki engine that transforms documents into a searchable, cross-linked knowledge graph at ingest time. Drop your `.md` transcripts in and get automatic linking and contradiction detection.
-
-## Requirements
-
-- macOS 14.4+
-- [yap](https://github.com/ggerganov/whisper.cpp) (`brew install yap`)
-- [Claude Code](https://claude.ai/code) installed and authenticated
