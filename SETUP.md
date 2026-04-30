@@ -4,7 +4,7 @@ Open a Claude Code session in the directory where you want your wiki. Then say:
 
 > Read the instructions at https://github.com/crbikebike/magpie/blob/main/SETUP.md and follow them.
 
-Claude Code will handle everything below. The only thing you do yourself is right-click → Open the installer at the end.
+Claude Code will handle everything below.
 
 ---
 
@@ -144,29 +144,24 @@ Use the manifest for quick scanning before reading full transcripts.
 4. If the answer is worth keeping, write it as a new wiki page
 ```
 
-### Step 8: Download the Magpie installer
+### Step 8: Clone and build Magpie
 
 ```bash
-pkg_url=$(curl -s https://api.github.com/repos/crbikebike/magpie/releases/latest \
-  | python3 -c "import sys,json; a=json.load(sys.stdin)['assets']; print(next(x['browser_download_url'] for x in a if x['name'].endswith('.pkg')))")
-curl -L "$pkg_url" -o ~/Downloads/Magpie-Installer.pkg
-echo "Downloaded: ~/Downloads/Magpie-Installer.pkg"
+if [ ! -d "$HOME/magpie" ]; then
+    git clone https://github.com/crbikebike/magpie.git ~/magpie
+fi
+bash ~/magpie/bin/build.sh
 ```
 
-### Step 9: Open Finder to the installer
-
-```bash
-open -R ~/Downloads/Magpie-Installer.pkg
-```
-
-### Step 10: Tell the user what to do next
+### Step 9: Tell the user what to do next
 
 Tell the user:
 
-1. **Right-click** `Magpie-Installer.pkg` in the Finder window that just opened → choose **Open** → follow the prompts
-2. After installing, open **Magpie** from Applications
-3. When asked for an output folder, navigate to **[current directory]/raw/Transcripts** and select it
-4. Grant **Microphone** access when prompted
-5. Optionally grant **Screen & System Audio Recording** for capturing both sides of calls
+1. Open **Magpie** from `~/Applications`
+2. When asked for an output folder, navigate to **[current directory]/raw/Transcripts** and select it
+3. Grant **Microphone** access when prompted
+4. Optionally grant **Screen & System Audio Recording** for capturing both sides of calls
 
 That's it. Magpie will write transcripts to `raw/Transcripts/` and the wiki is ready to ingest them.
+
+To update Magpie in future, open a Claude Code session in `~/magpie` and run `/update-magpie`.

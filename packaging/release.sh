@@ -59,23 +59,13 @@ gh release create "$TAG" \
     --notes "$(cat <<NOTES
 ![Magpie](https://raw.githubusercontent.com/crbikebike/magpie/main/docs/banner.png)
 
-## Install with Claude Code (recommended)
+## Install with Claude Code
 
 Open Claude Code in the directory where you want your wiki, then say:
 
 > Read the instructions at https://github.com/crbikebike/magpie/blob/main/SETUP.md and follow them.
 
-Claude Code will install Homebrew, yap, set up an LLM Wiki, download the installer, and walk you through the rest.
-
----
-
-## Manual install
-
-1. Download **Magpie-${VERSION}-Installer.pkg** below
-2. Right-click → **Open** (required first time — installer is self-signed)
-3. Follow the prompts
-4. Install yap: \`brew install yap\`
-5. Open Magpie, choose your output folder, grant Microphone access
+Claude Code will install Homebrew, yap, build Magpie from source, set up an LLM Wiki, and walk you through first-run setup.
 
 **Requires macOS 14.4+, [Claude Code](https://claude.ai/code) installed and authenticated.**
 
