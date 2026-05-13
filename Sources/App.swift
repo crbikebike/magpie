@@ -5,6 +5,17 @@ import AppKit
 import Combine
 import SwiftUI
 
+// MARK: - UserDefaults KVO
+
+/// KVO-observable property whose Objective-C name matches the
+/// `calendarAlertsEnabled` UserDefaults key. Lets Combine's
+/// `.publisher(for:)` surface preference changes immediately.
+extension UserDefaults {
+    @objc dynamic var calendarAlertsEnabled: Bool {
+        bool(forKey: "calendarAlertsEnabled")
+    }
+}
+
 // MARK: - Entry Point
 
 @main
@@ -28,7 +39,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Floating pill
     var pillWindow: FloatingPillWindow?
     private var pillVisibilityCancellable: AnyCancellable?
+    private var pillModeCancellable: AnyCancellable?
     private var hotkeyMonitor: Any?
+
+    // Calendar — fetcher + scheduler. Scheduler is started/stopped based on
+    // the user's `calendarAlertsEnabled` preference.
+    let calendarService = CalendarService()
+    var meetingScheduler: MeetingScheduler?
+    private var failureDotCancellable: AnyCancellable?
+    private var calendarPrefCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -113,6 +132,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Global hotkey Cmd+Shift+R
         registerGlobalHotkey()
+
+        // Calendar — start scheduler if the user has alerts enabled, watch
+        // for failure threshold + preference changes.
+        setupCalendar()
+    }
+
+    /// Wire calendar scheduling + the menubar failure dot.
+    private func setupCalendar() {
+        // Amber dot overlay when fetch fails 3× in a row (and we're not currently recording).
+        failureDotCancellable = Publishers.CombineLatest(
+            calendarService.$consecutiveFailures,
+            recorder.$isRecording
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] failures, isRecording in
+            guard let self else { return }
+            // Recording state owns the status icon while active.
+            guard !isRecording, let button = self.statusItem.button else { return }
+            let base = self.ravenImage() ?? NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
+            if failures >= 3, let img = base.map({ self.imageWithAmberDot($0) }) {
+                button.image = img
+                button.toolTip = "Calendar sync failing — last 3 fetches couldn't reach Claude Code"
+            } else {
+                button.image = base
+                button.toolTip = nil
+            }
+        }
+
+        // Start the scheduler on the calendarAlertsEnabled flag — UserDefaults
+        // KVO surfaces the change so toggling in prefs takes effect immediately.
+        calendarPrefCancellable = UserDefaults.standard
+            .publisher(for: \.calendarAlertsEnabled, options: [.initial, .new])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled {
+                    if self.meetingScheduler == nil {
+                        let sched = MeetingScheduler(
+                            service: self.calendarService,
+                            model: self.recorder
+                        )
+                        sched.start()
+                        self.meetingScheduler = sched
+                    }
+                } else {
+                    self.meetingScheduler?.stop()
+                    self.meetingScheduler = nil
+                }
+            }
+    }
+
+    /// Overlay an 8pt amber circle on the top-right of the status item image.
+    private func imageWithAmberDot(_ base: NSImage) -> NSImage {
+        let size = base.size
+        let composed = NSImage(size: size)
+        composed.lockFocus()
+        defer { composed.unlockFocus() }
+        // Draw the raven image as a template (uses the status item's natural tint).
+        base.draw(in: NSRect(origin: .zero, size: size),
+                  from: .zero, operation: .sourceOver, fraction: 1.0)
+        let dotDiameter: CGFloat = max(5, size.width * 0.35)
+        let dotRect = NSRect(
+            x: size.width - dotDiameter - 0.5,
+            y: size.height - dotDiameter - 0.5,
+            width: dotDiameter, height: dotDiameter
+        )
+        NSColor(red: 255 / 255, green: 166 / 255, blue: 43 / 255, alpha: 1.0).setFill()
+        NSBezierPath(ovalIn: dotRect).fill()
+        composed.isTemplate = false  // amber must render in color
+        return composed
     }
 
     /// Create the FloatingPillWindow, wire it to RecorderModel state.
@@ -120,18 +209,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let pill = FloatingPillWindow()
         let pillVC = NSHostingController(rootView: FloatingPillView().environmentObject(recorder))
         pill.contentViewController = pillVC
-        pill.contentViewController?.view.frame = NSRect(x: 0, y: 0, width: 180, height: 36)
+        pill.contentViewController?.view.frame = NSRect(x: 0, y: 0, width: 320, height: 36)
         pillWindow = pill
 
-        // Show pill when recording starts; hide when recording AND transcribing both finish.
-        pillVisibilityCancellable = recorder.$isRecording
+        // Visibility + height both come from pillMode. Combine the three
+        // inputs into one stream so we only react when the mode actually
+        // changes — avoids flicker from per-tick audioLevel updates.
+        let recordingSignal = Publishers.CombineLatest3(
+            recorder.$isRecording,
+            recorder.$activeTranscriptions,
+            recorder.$pendingPrompt
+        )
+        .map { isRecording, transcriptions, prompt -> PillMode in
+            let active = isRecording || (transcriptions > 0)
+            switch (active, prompt != nil) {
+            case (false, false): return .hidden
+            case (false, true):  return .idlePrompt
+            case (true,  false): return .recording
+            case (true,  true):  return .recordingWithDrawer
+            }
+        }
+        .removeDuplicates()
+
+        pillModeCancellable = recordingSignal
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] isRecording in
+            .sink { [weak self] mode in
                 guard let self, let pill = self.pillWindow else { return }
-                if isRecording {
-                    pill.showPill()
-                } else {
+                if mode == .hidden {
                     pill.hidePill()
+                } else {
+                    pill.applyHeight(for: mode)
+                    if !pill.isVisible { pill.showPill() }
                 }
             }
     }
@@ -186,8 +294,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .floating
         panel.isMovableByWindowBackground = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        let content = OnboardingView(onDone: { [weak self] in self?.closeOnboardingPanel() })
-            .environmentObject(recorder)
+        let content = OnboardingView(
+            calendarService: calendarService,
+            onDone: { [weak self] in self?.closeOnboardingPanel() }
+        )
+        .environmentObject(recorder)
         panel.contentViewController = NSHostingController(rootView: content)
         panel.setContentSize(NSSize(width: 320, height: 380))
         panel.center()

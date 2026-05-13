@@ -49,6 +49,49 @@ func formatDuration(_ seconds: Int) -> String {
     return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
 }
 
+// MARK: - Filename slug
+
+/// Slugify a (possibly nil/empty) title into a filesystem-safe filename stem.
+///
+/// Steps: trim → lowercase → replace any run of non-[a-z0-9] with a single
+/// hyphen → strip leading/trailing hyphens → truncate to 60 chars.
+/// Returns `"recording"` for nil/empty input or output that collapses to "".
+func filenameSlug(for title: String?) -> String {
+    guard let raw = title?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !raw.isEmpty
+    else {
+        return "recording"
+    }
+    // Approximate ASCII transliteration — strips diacritics, normalizes
+    // smart quotes etc. Then keep [a-z0-9] only.
+    let ascii = raw.applyingTransform(.toLatin, reverse: false) ?? raw
+    let folded = (ascii.applyingTransform(.stripDiacritics, reverse: false) ?? ascii)
+        .lowercased()
+
+    var out = ""
+    out.reserveCapacity(folded.count)
+    var lastWasHyphen = false
+    for ch in folded {
+        if (ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9") {
+            out.append(ch)
+            lastWasHyphen = false
+        } else {
+            if !lastWasHyphen && !out.isEmpty {
+                out.append("-")
+                lastWasHyphen = true
+            }
+        }
+    }
+    // Trim trailing hyphen if the title ended with non-alphanumerics.
+    while out.hasSuffix("-") { out.removeLast() }
+    if out.isEmpty { return "recording" }
+    if out.count > 60 {
+        out = String(out.prefix(60))
+        while out.hasSuffix("-") { out.removeLast() }
+    }
+    return out
+}
+
 // MARK: - Markdown Output
 
 /// Write a structured recording markdown file to vault/.
@@ -59,9 +102,18 @@ func formatDuration(_ seconds: Int) -> String {
 ///   - durationSeconds: Recording length in seconds.
 ///   - now: Timestamp to use for filename and headers (default: current time).
 ///           Pass a fixed value in tests for deterministic output.
+///   - title: Optional meeting title — used both as the H1 heading and as
+///            the filename slug. When nil the filename uses the historical
+///            `-recording.md` suffix.
 /// - Returns: URL of the written file.
 @discardableResult
-func writeMarkdown(transcript: String, vault: URL, durationSeconds: Int, now: Date = Date()) throws -> URL {
+func writeMarkdown(
+    transcript: String,
+    vault: URL,
+    durationSeconds: Int,
+    now: Date = Date(),
+    title: String? = nil
+) throws -> URL {
     let dir = vault
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
@@ -79,8 +131,16 @@ func writeMarkdown(transcript: String, vault: URL, durationSeconds: Int, now: Da
 
     let durationStr = formatDuration(durationSeconds)
 
+    let heading = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let h1: String
+    if let heading, !heading.isEmpty {
+        h1 = "# \(heading) — \(dateStr) \(timeStr)"
+    } else {
+        h1 = "# Recording — \(dateStr) \(timeStr)"
+    }
+
     let content = """
-    # Recording — \(dateStr) \(timeStr)
+    \(h1)
 
     **Date:** \(dateStr)
     **Time:** \(timeStr)
@@ -91,7 +151,10 @@ func writeMarkdown(transcript: String, vault: URL, durationSeconds: Int, now: Da
     \(transcript)
     """
 
-    let filename = "\(dateStr)-\(timeSlug)-recording.md"
+    let slug = filenameSlug(for: title)
+    // Preserve the historical default ("-recording") when no title given.
+    let filenameStem = (title == nil) ? "recording" : slug
+    let filename = "\(dateStr)-\(timeSlug)-\(filenameStem).md"
     let url = dir.appendingPathComponent(filename)
     try content.write(to: url, atomically: true, encoding: .utf8)
     return url

@@ -3,6 +3,10 @@
 //
 // An NSPanel subclass that provides an independent, always-on-top recording
 // indicator excluded from screen shares. Position persisted via UserDefaults.
+//
+// Variable height — see `applyHeight(for:)`. The window grows downward when
+// a calendar prompt drawer expands beneath the recording pill, and shrinks
+// back to the bare 36pt pill after the drawer dismisses.
 
 import AppKit
 
@@ -11,8 +15,18 @@ final class FloatingPillWindow: NSPanel {
     // UserDefaults key for persisted position
     static let positionKey = "floatingPillOrigin"
 
+    // Heights per pill mode — must stay in sync with FloatingPillView.
+    private static let heightHidden: CGFloat = 36
+    private static let heightRecording: CGFloat = 36
+    private static let heightIdlePrompt: CGFloat = 44
+    private static let heightRecordingWithDrawer: CGFloat = 148
+
+    /// Default width — the design pegs the prompt pill and drawer pill at
+    /// 320pt. The recording pill is narrower (hug-content) but the window
+    /// hosts a hosting controller that lays out at this width.
+    private static let pillWidth: CGFloat = 320
+
     // Default position: top-right, 80pt from right edge, 60pt from top.
-    // Uses actual frame width when available (post-layout); falls back to 160pt estimate.
     func defaultOrigin(for screen: NSScreen) -> NSPoint {
         let visible = screen.visibleFrame
         let x = visible.maxX - 80 - frame.width
@@ -22,7 +36,7 @@ final class FloatingPillWindow: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 40),
+            contentRect: NSRect(x: 0, y: 0, width: Self.pillWidth, height: Self.heightRecording),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
@@ -45,9 +59,41 @@ final class FloatingPillWindow: NSPanel {
         orderFront(nil)
     }
 
-    /// Hide the pill. Only callable when recording has stopped.
+    /// Hide the pill.
     func hidePill() {
         orderOut(nil)
+    }
+
+    /// Resize the window for the given pill mode, keeping the top-left
+    /// corner anchored so the pill grows downward (drawer reveal) rather
+    /// than upward off-screen.
+    func applyHeight(for mode: PillMode) {
+        let newHeight = height(for: mode)
+        let current = frame
+        // Anchor by top-left: in AppKit, the frame origin is bottom-left in
+        // screen coordinates, so to keep the top edge fixed we shift origin.y
+        // by (current.height - new.height).
+        let dy = current.height - newHeight
+        let newFrame = NSRect(
+            x: current.origin.x,
+            y: current.origin.y + dy,
+            width: current.width,
+            height: newHeight
+        )
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.30
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().setFrame(newFrame, display: true)
+        }
+    }
+
+    private func height(for mode: PillMode) -> CGFloat {
+        switch mode {
+        case .hidden:               return Self.heightHidden
+        case .recording:            return Self.heightRecording
+        case .idlePrompt:           return Self.heightIdlePrompt
+        case .recordingWithDrawer:  return Self.heightRecordingWithDrawer
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -60,8 +106,6 @@ final class FloatingPillWindow: NSPanel {
     }
 
     /// Load persisted origin, falling back to defaultOrigin.
-    /// Note: internal (not private) to allow direct test access from
-    /// TestFloatingPill.swift, which compiles in the same module.
     func loadPosition() -> NSPoint {
         guard let stored = UserDefaults.standard.string(forKey: Self.positionKey) else {
             return defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
@@ -75,21 +119,11 @@ final class FloatingPillWindow: NSPanel {
         }
 
         let point = NSPoint(x: x, y: y)
-
-        // Check if persisted position is within any connected screen's visible frame
-        let onScreen = NSScreen.screens.contains { screen in
-            screen.visibleFrame.contains(point)
-        }
-        if onScreen {
-            return point
-        }
-
-        return defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
+        let onScreen = NSScreen.screens.contains { $0.visibleFrame.contains(point) }
+        return onScreen ? point : defaultOrigin(for: NSScreen.main ?? NSScreen.screens[0])
     }
 
     /// Save current origin to UserDefaults.
-    /// Note: internal (not private) to allow direct test access from
-    /// TestFloatingPill.swift, which compiles in the same module.
     func savePosition() {
         let origin = frame.origin
         let value = "\(origin.x),\(origin.y)"

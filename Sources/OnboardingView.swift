@@ -3,27 +3,54 @@
 
 import AppKit
 import AVFoundation
+import Combine
 import SwiftUI
+
+// MARK: - Calendar onboarding state
+
+/// Outcome of probing the Claude Code Google Calendar connector.
+enum CalendarOnboardingBranch: Equatable {
+    case probing                                // initial — show spinner
+    case signedOut                              // user not signed in to Claude Code
+    case notAuthorized(hint: String)            // signed in, connector not authorized yet
+    case ready                                  // probe returned events (or empty list)
+    case probeError(detail: String)             // generic failure (network, timeout, etc.)
+}
+
+// MARK: - View
 
 struct OnboardingView: View {
     @EnvironmentObject var model: RecorderModel
+    let calendarService: CalendarService
     var onDone: (() -> Void)? = nil
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Magpie")
-                    .font(.headline)
-                Text("Set up permissions so your recordings capture what you need")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+    @State private var calendarBranch: CalendarOnboardingBranch = .probing
+    @State private var probeTask: Task<Void, Never>? = nil
+    @State private var calendarSetupRequested = false
 
-            Divider()
+    init(calendarService: CalendarService = CalendarService(), onDone: (() -> Void)? = nil) {
+        self.calendarService = calendarService
+        self.onDone = onDone
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Magpie")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(MagpieColors.darkPlum)
+                    Text("Set up permissions so your recordings capture what you need")
+                        .font(.system(size: 12))
+                        .italic()
+                        .foregroundColor(MagpieColors.plumCharcoal)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+                Divider()
 
             // Output folder row
             vaultRow
@@ -56,30 +83,39 @@ struct OnboardingView: View {
 
             Divider()
 
-            // Done button — requires vault + mic; system audio is optional
-            VStack(spacing: 8) {
-                Button {
-                    model.showOnboarding = false
-                    model.refreshPermissions()
-                    onDone?()
-                } label: {
-                    Text("Done")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.vaultPath == nil || model.micPermission != .authorized)
+            calendarAlertsCard
 
-                Button {
-                    model.showOnboarding = false
-                } label: {
-                    Text("Close")
-                        .frame(maxWidth: .infinity)
+            Divider()
+
+                // Done button — requires vault + mic; system audio + calendar optional
+                VStack(spacing: 8) {
+                    Button {
+                        model.showOnboarding = false
+                        model.refreshPermissions()
+                        onDone?()
+                    } label: {
+                        Text("Done")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(MagpieColors.sandstone)
+                    .disabled(model.vaultPath == nil || model.micPermission != .authorized)
+
+                    Button {
+                        model.showOnboarding = false
+                    } label: {
+                        Text("Close")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
+                .padding(16)
             }
-            .padding(16)
+            .frame(width: 320)
         }
-        .frame(width: 300)
+        .frame(width: 320)
+        .onAppear { runProbeIfNeeded() }
+        .onDisappear { probeTask?.cancel() }
     }
 
     // MARK: - System Audio Card Status
@@ -98,28 +134,37 @@ struct OnboardingView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "folder.fill")
                 .font(.title2)
-                .foregroundColor(model.vaultPath != nil ? MagpieColors.successGreen : MagpieColors.pencil)
+                .foregroundColor(model.vaultPath != nil ? MagpieColors.sage : MagpieColors.plumCharcoal)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Output Folder").font(.callout).fontWeight(.medium)
+                Text("Output Folder")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(MagpieColors.darkPlum)
                 if let vault = model.vaultPath {
                     Text(vault.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.custom("Lora", size: 12))
+                        .italic()
+                        .foregroundColor(MagpieColors.plumCharcoal)
                         .lineLimit(2)
                 } else {
                     Text("Not configured")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.custom("Lora", size: 12))
+                        .italic()
+                        .foregroundColor(MagpieColors.plumCharcoal)
                 }
             }
 
             Spacer()
 
-            Button("Choose") { model.pickVault() }
-                .font(.caption)
-                .buttonStyle(.borderedProminent)
+            if model.vaultPath != nil {
+                doneTag
+            } else {
+                Button("Choose") { model.pickVault() }
+                    .font(.system(size: 12, weight: .medium))
+                    .buttonStyle(.borderedProminent)
+                    .tint(MagpieColors.sandstone)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -150,43 +195,297 @@ struct OnboardingView: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(status == .authorized ? MagpieColors.successGreen : MagpieColors.pencil)
+                .foregroundColor(status == .authorized ? MagpieColors.sage : MagpieColors.plumCharcoal)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.callout).fontWeight(.medium)
-                Text(detail).font(.caption).foregroundColor(.secondary)
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(MagpieColors.darkPlum)
+                Text(detail)
+                    .font(.custom("Lora", size: 12))
+                    .italic()
+                    .foregroundColor(MagpieColors.plumCharcoal)
             }
 
             Spacer()
 
             switch status {
             case .authorized:
-                Text("✓ Done")
-                    .font(.caption)
-                    .foregroundColor(MagpieColors.successGreen)
+                doneTag
             case .denied:
                 VStack(alignment: .trailing, spacing: 2) {
                     if let detailText = deniedDetailText {
                         Text(detailText)
-                            .font(.caption2)
-                            .foregroundColor(MagpieColors.warningAmber)
+                            .font(.system(size: 11))
+                            .foregroundColor(MagpieColors.amberText)
                     }
                     Button("Open Settings") {
                         if let url = URL(string: settingsURL) {
                             NSWorkspace.shared.open(url)
                         }
                     }
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .buttonStyle(.bordered)
                 }
             case .notDetermined:
                 Button("Enable") { action() }
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .medium))
                     .buttonStyle(.borderedProminent)
+                    .tint(MagpieColors.sandstone)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    // MARK: - Calendar Alerts Card
+
+    @ViewBuilder
+    private var calendarAlertsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "calendar")
+                    .font(.title2)
+                    .foregroundColor(calendarIconColor)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Calendar alerts")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(MagpieColors.darkPlum)
+                    Text(calendarDetailText)
+                        .font(.custom("Lora", size: 12))
+                        .italic()
+                        .foregroundColor(MagpieColors.plumCharcoal)
+                }
+
+                Spacer()
+
+                switch calendarBranch {
+                case .ready:
+                    doneTag
+                case .probing:
+                    ProgressView().scaleEffect(0.6)
+                case .signedOut, .notAuthorized, .probeError:
+                    if !calendarSetupRequested {
+                        Button("Set up") {
+                            calendarSetupRequested = true
+                            runProbe()
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .buttonStyle(.borderedProminent)
+                        .tint(MagpieColors.sandstone)
+                    }
+                }
+            }
+
+            if calendarSetupRequested {
+                switch calendarBranch {
+                case .signedOut:
+                    signedOutBranch
+                case .notAuthorized:
+                    notAuthorizedBranch
+                case .probeError(let detail):
+                    probeErrorBranch(detail: detail)
+                case .probing, .ready:
+                    EmptyView()
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var calendarIconColor: Color {
+        switch calendarBranch {
+        case .ready:              return MagpieColors.sage
+        case .signedOut,
+             .notAuthorized,
+             .probeError:         return MagpieColors.amber
+        case .probing:            return MagpieColors.plumCharcoal
+        }
+    }
+
+    private var calendarDetailText: String {
+        switch calendarBranch {
+        case .ready:              return "Prompting you 30 seconds before each meeting"
+        case .signedOut:          return "Reads your calendar through Claude Code · optional"
+        case .notAuthorized:      return "Signed in · one more grant to finish"
+        case .probeError:         return "Reads your calendar through Claude Code · optional"
+        case .probing:            return "Checking your Claude Code setup…"
+        }
+    }
+
+    @ViewBuilder
+    private var signedOutBranch: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            statusChip(tone: .amber, text: "Not signed in to Claude Code")
+            Text("Magpie asks Claude Code to read your calendar — so events stay on your machine and Magpie never sees your Google credentials.")
+                .font(.system(size: 12))
+                .foregroundColor(MagpieColors.slateText)
+                .lineSpacing(2)
+
+            HStack(spacing: 8) {
+                Button("Open Terminal") {
+                    openTerminalWithLoginHint()
+                }
+                .font(.system(size: 12, weight: .medium))
+                .buttonStyle(.borderedProminent)
+                .tint(MagpieColors.sandstone)
+
+                Button("Re-check") { runProbe() }
+                    .font(.system(size: 12, weight: .medium))
+                    .buttonStyle(.bordered)
+            }
+
+            Text("Run `claude /login` in your terminal, then click Re-check.")
+                .font(.custom("Lora", size: 11.5))
+                .italic()
+                .foregroundColor(MagpieColors.plumCharcoal)
+        }
+        .padding(.leading, 40)
+    }
+
+    @ViewBuilder
+    private var notAuthorizedBranch: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            statusChip(tone: .sage, text: "Signed in to Claude Code")
+            Text("Last step — authorize the Google Calendar connector in your Claude.ai settings.")
+                .font(.system(size: 12))
+                .foregroundColor(MagpieColors.slateText)
+                .lineSpacing(2)
+
+            // Quiet URL display
+            HStack(spacing: 8) {
+                Image(systemName: "link")
+                    .font(.system(size: 11))
+                    .foregroundColor(MagpieColors.slateText)
+                Text("claude.ai/settings/connectors")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(MagpieColors.darkPlum)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(MagpieColors.paperWhite)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(MagpieColors.slate.opacity(0.25), lineWidth: 0.5)
+                    )
+            )
+
+            HStack(spacing: 8) {
+                Button("Authorize Google Calendar") {
+                    if let url = URL(string: "https://claude.ai/settings/connectors") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .font(.system(size: 12, weight: .medium))
+                .buttonStyle(.borderedProminent)
+                .tint(MagpieColors.sandstone)
+
+                Button("Test connection") { runProbe() }
+                    .font(.system(size: 12, weight: .medium))
+                    .buttonStyle(.bordered)
+            }
+
+            Text("Or skip — you can do this later from the popover.")
+                .font(.custom("Lora", size: 11.5))
+                .italic()
+                .foregroundColor(MagpieColors.plumCharcoal)
+        }
+        .padding(.leading, 40)
+    }
+
+    @ViewBuilder
+    private func probeErrorBranch(detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            statusChip(tone: .amber, text: "Calendar probe failed")
+            Text(detail)
+                .font(.system(size: 12))
+                .foregroundColor(MagpieColors.slateText)
+                .lineSpacing(2)
+                .lineLimit(3)
+
+            Button("Try again") { runProbe() }
+                .font(.system(size: 12, weight: .medium))
+                .buttonStyle(.bordered)
+        }
+        .padding(.leading, 40)
+    }
+
+    @ViewBuilder
+    private func statusChip(tone: ChipTone, text: String) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(tone == .amber ? MagpieColors.amberText : MagpieColors.sageTintFg)
+                .frame(width: 6, height: 6)
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(tone == .amber ? MagpieColors.amberText : MagpieColors.sageTintFg)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 3)
+        .background(
+            Capsule().fill(tone == .amber ? MagpieColors.amberTintBg : MagpieColors.sageTintBg)
+        )
+    }
+
+    private enum ChipTone { case amber, sage }
+
+    // MARK: - Probe
+
+    private func runProbeIfNeeded() {
+        // Only probe automatically when the user has previously turned alerts on —
+        // for a first-time user the calendar row stays collapsed until they tap "Set up".
+        if UserDefaults.standard.bool(forKey: CalendarPrefs.alertsEnabled) {
+            calendarSetupRequested = true
+            runProbe()
+        }
+    }
+
+    private func runProbe() {
+        probeTask?.cancel()
+        calendarBranch = .probing
+        probeTask = Task { @MainActor in
+            let result = await calendarService.probeForOnboarding()
+            switch result {
+            case .success:
+                calendarBranch = .ready
+                UserDefaults.standard.set(true, forKey: CalendarPrefs.alertsEnabled)
+            case .signedOutOrMissing:
+                calendarBranch = .signedOut
+            case .notAuthorized(let hint):
+                calendarBranch = .notAuthorized(hint: hint)
+            case .otherFailure(let detail):
+                calendarBranch = .probeError(detail: detail)
+            }
+        }
+    }
+
+    private func openTerminalWithLoginHint() {
+        // Open Terminal.app — it'll come to the foreground and the user can paste
+        // `claude /login`. We don't AppleScript-pipe a command because that
+        // requires Automation TCC.
+        if let terminalURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
+            NSWorkspace.shared.open(terminalURL)
+        }
+    }
+
+    // MARK: - Reusable bits
+
+    private var doneTag: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 10, weight: .bold))
+            Text("Done")
+                .font(.system(size: 11.5, weight: .medium))
+        }
+        .foregroundColor(MagpieColors.sageTintFg)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(MagpieColors.sageTintBg))
     }
 }

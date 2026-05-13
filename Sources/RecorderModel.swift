@@ -57,6 +57,16 @@ extension Notification.Name {
     static let didRequestSysAudioPermission  = Notification.Name("RecorderModel.didRequestSysAudioPermission")
 }
 
+// MARK: - Pill mode
+
+/// Drives which of the three FloatingPillView modes is on-screen.
+enum PillMode: Equatable {
+    case hidden
+    case recording
+    case idlePrompt
+    case recordingWithDrawer
+}
+
 class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     @Published var isRecording = false
     @Published var activeTranscriptions = 0
@@ -69,6 +79,25 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     @Published var audioLevel: Float = 0
     @Published var micPermission: AVAuthorizationStatus = .notDetermined
     @Published var showOnboarding: Bool = false
+
+    // Calendar prompt state — set by MeetingScheduler, observed by FloatingPillView.
+    @Published var pendingPrompt: CalendarPrompt? = nil
+
+    /// Drives the floating pill's render mode in a single expression. Tested
+    /// by FloatingPillView's switch — keep the enum exhaustive.
+    var pillMode: PillMode {
+        let active = isRecording || isTranscribing
+        switch (active, pendingPrompt != nil) {
+        case (false, false): return .hidden
+        case (false, true):  return .idlePrompt
+        case (true,  false): return .recording
+        case (true,  true):  return .recordingWithDrawer
+        }
+    }
+
+    /// Title supplied when `startRecording(title:)` is called from a calendar
+    /// prompt. Used by `transcribe(…)` to slugify the output filename.
+    private var currentRecordingTitle: String? = nil
 
     // System audio state
     @Published var sysAudioPermission: SystemAudioSession.Permission = .notDetermined
@@ -355,7 +384,13 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
 
     // MARK: - Recording
 
-    func startRecording() {
+    /// Convenience entry — keeps existing callsites (hotkey, popover button)
+    /// working without supplying a title.
+    func startRecording() { startRecording(title: nil) }
+
+    /// Start a recording. When `title` is supplied (e.g. from a calendar
+    /// prompt) the output markdown filename will be slugified from it.
+    func startRecording(title: String?) {
         if let last = lastStopTime, Date().timeIntervalSince(last) < recordingCooldownSeconds {
             statusMessage = "Finishing up — try again in a sec"
             return
@@ -365,6 +400,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             statusMessage = "Select an output folder first."
             return
         }
+        currentRecordingTitle = title
 
         // Mic permission required for mic-involving modes
         if audioMode == .micOnly || audioMode == .micAndSystem {
@@ -486,8 +522,10 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         let capturedURL = recordingURL
         let duration = elapsedSeconds
         let capturedMode = audioMode
+        let capturedTitle = currentRecordingTitle
 
         recordingURL = nil
+        currentRecordingTitle = nil
         isRecording = false
         activeTranscriptions += 1
         statusMessage = ""
@@ -497,12 +535,33 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             return
         }
 
-        Task { await self.transcribe(audioURL: audioURL, durationSeconds: duration, mode: capturedMode) }
+        Task {
+            await self.transcribe(
+                audioURL: audioURL,
+                durationSeconds: duration,
+                mode: capturedMode,
+                title: capturedTitle
+            )
+        }
+    }
+
+    /// Stop the current recording and start a new one tagged with `title`.
+    /// Used by the calendar prompt's "Record next meeting" action when a
+    /// new meeting starts while we're still recording the previous one.
+    func stopAndStart(title: String) {
+        stopRecording()
+        // stopRecording sets lastStopTime; the cooldown is enforced inside
+        // startRecording. We poll until cooldown elapses (lightweight — the
+        // user dismisses the prompt during the same tick).
+        let cooldown = recordingCooldownSeconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + cooldown + 0.1) { [weak self] in
+            self?.startRecording(title: title)
+        }
     }
 
     // MARK: - Transcription
 
-    private func transcribe(audioURL: URL, durationSeconds: Int, mode: AudioMode) async {
+    private func transcribe(audioURL: URL, durationSeconds: Int, mode: AudioMode, title: String? = nil) async {
         let isCAF = audioURL.pathExtension.lowercased() == "caf"
         var convertedM4A: URL? = nil
         var retainedAudio = false
@@ -616,7 +675,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
                 )
             }
 
-            let mdURL = try writeMarkdown(transcript: output, vault: vault, durationSeconds: durationSeconds)
+            let mdURL = try writeMarkdown(transcript: output, vault: vault, durationSeconds: durationSeconds, title: title)
             log("Saved: \(mdURL.lastPathComponent)", vaultPath: vault)
 
             // Retain audio in vault — watcher links it to the transcript, /evening cleans up after triage

@@ -1,0 +1,351 @@
+// Sources/CalendarService.swift
+// Magpie — Fetches upcoming calendar events via the Claude.ai Google Calendar
+// connector.
+//
+// Architecture:
+//   - Spawns `claude -p "<strict JSON prompt>"` as a subprocess.
+//   - The connector's `mcp__claude_ai_Google_Calendar__*` tools live inside the
+//     user's signed-in Claude.ai account — no separate MCP install required.
+//   - `--allowedTools` is passed so the connector tools don't trigger an
+//     interactive permission prompt on every 15-minute poll. This is the
+//     single biggest implementation unknown — verify the flag name on the
+//     target Claude Code build during smoke testing.
+//   - JSON is parsed with the same three-stage extraction used by
+//     `bin/watcher.py:_extract_json` (direct, code-fence-stripped, balanced
+//     brace) so the model's output format doesn't have to be exact.
+//   - On any error path `consecutiveFailures` increments — the menubar amber
+//     dot turns on at ≥ 3.
+
+import Combine
+import Foundation
+
+// MARK: - Errors
+
+enum CalendarServiceError: Error, LocalizedError {
+    /// `claude` binary not found in any known PATH location.
+    case binaryNotFound
+    /// Subprocess exited non-zero. `stderr` is the captured tail (≤ 2 KB).
+    case subprocessFailed(exitCode: Int32, stderr: String)
+    /// 15-second timeout elapsed before subprocess returned.
+    case timeout
+    /// Output didn't contain parseable JSON in any of the three extraction stages.
+    case jsonParseFailed(rawPreview: String)
+    /// Strict-JSON envelope didn't decode into `CalendarFetchResponse`.
+    case schemaMismatch(detail: String)
+    /// Connector reported an auth error in stderr / output (signed-out, not authorized).
+    case notAuthorized(hint: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .binaryNotFound:           return "claude CLI not found on this system"
+        case .subprocessFailed(let c, let s):
+                                        return "claude exited \(c): \(s)"
+        case .timeout:                  return "claude calendar fetch timed out after 15s"
+        case .jsonParseFailed(let p):   return "calendar fetch returned non-JSON output: \(p)"
+        case .schemaMismatch(let d):    return "calendar JSON did not match schema: \(d)"
+        case .notAuthorized(let h):     return "Google Calendar connector not authorized: \(h)"
+        }
+    }
+}
+
+// MARK: - Service
+
+final class CalendarService: ObservableObject, @unchecked Sendable {
+
+    /// Number of consecutive failed fetches. Drives the menubar amber dot.
+    /// Resets to 0 on the next success.
+    @Published var consecutiveFailures: Int = 0
+
+    /// Timestamp of the most recent successful fetch (used by UI for the
+    /// "last fetched X min ago" hint in preferences).
+    @Published var lastSuccessfulFetch: Date? = nil
+
+    /// Strict JSON prompt — see CalendarFetchResponse for the contract.
+    private static let prompt = """
+    Use the Google Calendar connector to list events with start times \
+    between now and 4 hours from now (inclusive). Across all calendars the \
+    user has authorized.
+
+    Return ONLY a single JSON object — no prose, no markdown, no code fences. \
+    Match this exact shape:
+
+    {
+      "events": [
+        {
+          "id": "iCalUID or event id",
+          "title": "summary text or empty string",
+          "start": "ISO8601 datetime with timezone offset",
+          "end": "ISO8601 datetime with timezone offset",
+          "status": "accepted | declined | tentative | needsAction",
+          "calendar": "calendar display name",
+          "allDay": false
+        }
+      ],
+      "fetched_at": "ISO8601 datetime with timezone offset"
+    }
+
+    If there are no events in the window, return \
+    {"events": [], "fetched_at": "..."}.
+
+    Treat the user's own response status as the "status" field. If unknown, \
+    use "accepted". For all-day events set allDay to true and use date-only \
+    start/end at midnight local time.
+    """
+
+    /// PATH locations to search for the `claude` binary, in priority order.
+    private static let claudePaths = [
+        "/opt/homebrew/bin/claude",
+        "/usr/local/bin/claude",
+        "/usr/bin/claude",
+    ]
+
+    private static let subprocessTimeout: TimeInterval = 15
+
+    // MARK: - Public API
+
+    /// Fetch events in the next 4 hours.
+    ///
+    /// Throws on subprocess failure, timeout, JSON parse failure, or schema
+    /// mismatch. Side effect: increments `consecutiveFailures` on throw,
+    /// resets it on return.
+    @discardableResult
+    func fetchUpcomingEvents() async throws -> [CalendarEvent] {
+        do {
+            let output = try await spawnClaude(prompt: Self.prompt)
+            let response = try decode(output: output)
+            await MainActor.run {
+                self.consecutiveFailures = 0
+                self.lastSuccessfulFetch = Date()
+            }
+            return response.events
+        } catch {
+            await MainActor.run { self.consecutiveFailures += 1 }
+            throw error
+        }
+    }
+
+    /// Probe used by onboarding to distinguish auth states from connectivity errors.
+    /// Returns `.success` with event count on success, otherwise the specific failure mode.
+    func probeForOnboarding() async -> ProbeResult {
+        do {
+            let events = try await fetchUpcomingEvents()
+            return .success(eventCount: events.count)
+        } catch CalendarServiceError.binaryNotFound {
+            return .signedOutOrMissing
+        } catch CalendarServiceError.notAuthorized(let hint) {
+            return .notAuthorized(hint: hint)
+        } catch let CalendarServiceError.subprocessFailed(_, stderr)
+            where stderr.lowercased().contains("login")
+                || stderr.lowercased().contains("auth")
+                || stderr.lowercased().contains("sign in") {
+            return .signedOutOrMissing
+        } catch {
+            return .otherFailure(detail: error.localizedDescription)
+        }
+    }
+
+    enum ProbeResult {
+        case success(eventCount: Int)
+        case signedOutOrMissing
+        case notAuthorized(hint: String)
+        case otherFailure(detail: String)
+    }
+
+    // MARK: - Subprocess
+
+    /// Invoke `claude -p "<prompt>"` with --allowedTools restricted to the
+    /// Google Calendar connector. Captures stdout (the JSON) and stderr (for
+    /// error diagnosis). Times out at 15s.
+    private func spawnClaude(prompt: String) async throws -> String {
+        guard let claudePath = Self.claudePaths.first(where: {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }) else {
+            throw CalendarServiceError.binaryNotFound
+        }
+
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: claudePath)
+            proc.arguments = [
+                "-p", prompt,
+                "--output-format", "text",
+                // NOTE: --allowedTools is the documented flag for the
+                // non-interactive `-p` invocation. The exact glob may need to
+                // be tightened (e.g. mcp__claude_ai_Google_Calendar__list_events)
+                // — verify on the target Claude Code build during smoke test.
+                "--allowedTools", "mcp__claude_ai_Google_Calendar__*",
+            ]
+
+            let outPipe = Pipe()
+            let errPipe = Pipe()
+            proc.standardOutput = outPipe
+            proc.standardError = errPipe
+            proc.standardInput = FileHandle.nullDevice
+
+            var didResume = false
+            let resumeLock = NSLock()
+            func resumeOnce(_ result: Result<String, Error>) {
+                resumeLock.lock()
+                defer { resumeLock.unlock() }
+                guard !didResume else { return }
+                didResume = true
+                switch result {
+                case .success(let s): cont.resume(returning: s)
+                case .failure(let e): cont.resume(throwing: e)
+                }
+            }
+
+            // Watchdog — kill the process if it doesn't return in time.
+            let timeoutWork = DispatchWorkItem {
+                if proc.isRunning {
+                    proc.terminate()
+                    // SIGTERM may not land instantly on hung subprocesses;
+                    // give it 1s then SIGKILL.
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+                        if proc.isRunning { kill(proc.processIdentifier, SIGKILL) }
+                    }
+                }
+                resumeOnce(.failure(CalendarServiceError.timeout))
+            }
+            DispatchQueue.global().asyncAfter(
+                deadline: .now() + Self.subprocessTimeout,
+                execute: timeoutWork
+            )
+
+            proc.terminationHandler = { p in
+                timeoutWork.cancel()
+                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                let stdout = String(data: outData, encoding: .utf8) ?? ""
+                let stderr = String(data: errData, encoding: .utf8) ?? ""
+
+                if p.terminationStatus == 0 {
+                    // The connector occasionally writes auth hints to stderr
+                    // even on exit 0. Surface those as `.notAuthorized` so
+                    // onboarding can branch correctly.
+                    let lower = stderr.lowercased()
+                    if lower.contains("not authorized")
+                        || lower.contains("connector")
+                            && (lower.contains("authorize") || lower.contains("permission")) {
+                        resumeOnce(.failure(CalendarServiceError.notAuthorized(
+                            hint: String(stderr.prefix(200)).trimmingCharacters(in: .whitespacesAndNewlines)
+                        )))
+                        return
+                    }
+                    resumeOnce(.success(stdout))
+                } else {
+                    let trimmed = String(stderr.prefix(2048))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    resumeOnce(.failure(CalendarServiceError.subprocessFailed(
+                        exitCode: p.terminationStatus,
+                        stderr: trimmed
+                    )))
+                }
+            }
+
+            do {
+                try proc.run()
+            } catch {
+                timeoutWork.cancel()
+                resumeOnce(.failure(error))
+            }
+        }
+    }
+
+    // MARK: - JSON extraction (three-stage, mirrors watcher.py)
+
+    /// Try to decode the strict envelope from `output`. Three stages:
+    ///   1. Direct parse
+    ///   2. Code-fence stripped parse (```json ... ``` blocks)
+    ///   3. Balanced-brace extraction (find outermost {...})
+    private func decode(output: String) throws -> CalendarFetchResponse {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let decoder = Self.decoder
+
+        // Stage 1: direct.
+        if let data = trimmed.data(using: .utf8),
+           let resp = try? decoder.decode(CalendarFetchResponse.self, from: data) {
+            return resp
+        }
+
+        // Stage 2: code fences.
+        if let fenced = Self.codeFenceContent(in: trimmed),
+           let data = fenced.data(using: .utf8),
+           let resp = try? decoder.decode(CalendarFetchResponse.self, from: data) {
+            return resp
+        }
+
+        // Stage 3: balanced braces.
+        if let braced = Self.balancedBraceContent(in: trimmed),
+           let data = braced.data(using: .utf8) {
+            do {
+                return try decoder.decode(CalendarFetchResponse.self, from: data)
+            } catch let DecodingError.dataCorrupted(ctx) {
+                throw CalendarServiceError.schemaMismatch(detail: ctx.debugDescription)
+            } catch let DecodingError.keyNotFound(key, _) {
+                throw CalendarServiceError.schemaMismatch(detail: "missing key: \(key.stringValue)")
+            } catch let DecodingError.typeMismatch(_, ctx) {
+                throw CalendarServiceError.schemaMismatch(detail: "type mismatch: \(ctx.debugDescription)")
+            } catch let DecodingError.valueNotFound(_, ctx) {
+                throw CalendarServiceError.schemaMismatch(detail: "value not found: \(ctx.debugDescription)")
+            }
+        }
+
+        let preview = String(trimmed.prefix(200))
+            .replacingOccurrences(of: "\n", with: "\\n")
+        throw CalendarServiceError.jsonParseFailed(rawPreview: preview)
+    }
+
+    private static let decoder: JSONDecoder = {
+        let dec = JSONDecoder()
+        dec.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            // Try full ISO8601 with timezone, then with fractional seconds,
+            // then date-only (for all-day events).
+            let isoFull = ISO8601DateFormatter()
+            isoFull.formatOptions = [.withInternetDateTime]
+            if let d = isoFull.date(from: raw) { return d }
+            isoFull.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = isoFull.date(from: raw) { return d }
+            let dateOnly = DateFormatter()
+            dateOnly.locale = Locale(identifier: "en_US_POSIX")
+            dateOnly.timeZone = TimeZone.current
+            dateOnly.dateFormat = "yyyy-MM-dd"
+            if let d = dateOnly.date(from: raw) { return d }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "unparseable date: \(raw)"
+            )
+        }
+        return dec
+    }()
+
+    private static func codeFenceContent(in text: String) -> String? {
+        // ```json\n...\n``` or ```\n...\n```
+        let pattern = #"```(?:json)?\s*\n([\s\S]*?)\n\s*```"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = text as NSString
+        let match = regex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length))
+        guard let m = match, m.numberOfRanges >= 2 else { return nil }
+        return ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func balancedBraceContent(in text: String) -> String? {
+        guard let start = text.firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var i = start
+        while i < text.endIndex {
+            let ch = text[i]
+            if ch == "{" { depth += 1 }
+            else if ch == "}" {
+                depth -= 1
+                if depth == 0 {
+                    return String(text[start...i])
+                }
+            }
+            i = text.index(after: i)
+        }
+        return nil
+    }
+}

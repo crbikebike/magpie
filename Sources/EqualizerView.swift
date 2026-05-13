@@ -40,6 +40,8 @@ struct EqualizerView: View {
 
     private func barColor(index: Int) -> Color {
         let dist = abs(index - barCount / 2)
-        return MagpieColors.recordingRed.opacity(1.0 - Double(dist) * 0.2)
+        // Design system: equalizer bars use plumCharcoal (fg-3) at low opacity
+        // — calm tertiary visual, not a primary action color.
+        return MagpieColors.plumCharcoal.opacity(0.85 - Double(dist) * 0.15)
     }
 }
