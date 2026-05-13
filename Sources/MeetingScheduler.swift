@@ -20,34 +20,10 @@ import Foundation
 // MARK: - UserDefaults keys
 
 enum CalendarPrefs {
-    static let alertsEnabled        = "calendarAlertsEnabled"        // Bool, default false
-    static let leadTimeSeconds      = "calendarLeadTimeSeconds"      // Int, default 30
-    static let watchedCalendars     = "calendarWatchedCalendars"     // [String]
-    static let workStartHour        = "calendarWorkStartHour"        // Int, default 8
-    static let workEndHour          = "calendarWorkEndHour"          // Int, default 18
-    static let blockList            = "calendarBlockList"            // [String]
+    static let alertsEnabled = "calendarAlertsEnabled"   // Bool, default false
 
-    static var leadTime: Int {
-        // 0 is a valid user choice ("the moment a meeting starts"), so treat
-        // an absent key as default 30 rather than treating 0 as unset.
-        guard UserDefaults.standard.object(forKey: leadTimeSeconds) != nil else { return 30 }
-        return UserDefaults.standard.integer(forKey: leadTimeSeconds)
-    }
-    static var workStart: Int {
-        let v = UserDefaults.standard.object(forKey: workStartHour) as? Int
-        return v ?? 8
-    }
-    static var workEnd: Int {
-        let v = UserDefaults.standard.object(forKey: workEndHour) as? Int
-        return v ?? 18
-    }
-    static var watched: Set<String> {
-        let arr = UserDefaults.standard.stringArray(forKey: watchedCalendars) ?? []
-        return Set(arr)
-    }
-    static var blocked: [String] {
-        UserDefaults.standard.stringArray(forKey: blockList) ?? []
-    }
+    /// Fixed at 30s — the design's chosen lead time.
+    static let leadTime: Int = 30
 }
 
 // MARK: - Scheduler
@@ -221,24 +197,6 @@ final class MeetingScheduler: @unchecked Sendable {
         if event.start.timeIntervalSince(now) > Self.lookaheadWindow { return false }
         // Past-start: only allowed by fireAlert's late-join handling.
         if event.start.timeIntervalSinceNow < 0 { return false }
-        // Watched-calendar filter (empty = match all).
-        let watched = CalendarPrefs.watched
-        if !watched.isEmpty && !watched.contains(event.calendar) {
-            return false
-        }
-        // Work-hours filter — uses the event's start hour in the local zone.
-        if !event.isInsideWorkHours(
-            startHour: CalendarPrefs.workStart,
-            endHour: CalendarPrefs.workEnd
-        ) {
-            return false
-        }
-        // Block-list — case-insensitive substring match against title.
-        let title = event.title.lowercased()
-        for keyword in CalendarPrefs.blocked
-            where !keyword.isEmpty && title.contains(keyword.lowercased()) {
-            return false
-        }
         return true
     }
 

@@ -38,13 +38,6 @@ struct CalendarEvent: Codable, Equatable, Hashable {
     func alertFireDate(leadTimeSeconds: Int) -> Date {
         start.addingTimeInterval(-TimeInterval(leadTimeSeconds))
     }
-
-    /// True when `start` falls within `[work_start, work_end)` on its own day.
-    func isInsideWorkHours(startHour: Int, endHour: Int) -> Bool {
-        let cal = Calendar.current
-        let h = cal.component(.hour, from: start)
-        return h >= startHour && h < endHour
-    }
 }
 
 // MARK: - Prompt

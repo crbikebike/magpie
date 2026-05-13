@@ -106,126 +106,25 @@ struct RecorderView: View {
 
     // MARK: - Calendar Preferences
 
-    @AppStorage("calendarAlertsEnabled")  private var calendarAlertsEnabled: Bool = false
-    @AppStorage("calendarLeadTimeSeconds") private var leadTimeSeconds: Int = 30
-    @AppStorage("calendarWorkStartHour")  private var workStartHour: Int = 8
-    @AppStorage("calendarWorkEndHour")    private var workEndHour: Int = 18
-    @State private var blockListText: String = ""
-    @State private var blockListLoaded = false
+    @AppStorage("calendarAlertsEnabled") private var calendarAlertsEnabled: Bool = false
 
+    /// Single row — icon + "Calendar" label + on/off toggle. Lead time,
+    /// work hours, and block list all use sensible defaults baked into
+    /// MeetingScheduler (30s lead time, 8–18 work hours, no block list).
     private var calendarPrefsSection: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle(isOn: $calendarAlertsEnabled) {
-                    Text("Prompt me when meetings start")
-                        .font(.caption)
-                        .foregroundColor(MagpieColors.darkPlum)
-                }
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .font(.system(size: 12))
+                .foregroundColor(MagpieColors.plumCharcoal)
+            Text("Calendar")
+                .font(.caption)
+                .foregroundColor(MagpieColors.darkPlum)
+            Spacer()
+            Toggle("", isOn: $calendarAlertsEnabled)
                 .toggleStyle(.switch)
                 .tint(MagpieColors.sandstone)
-
-                if calendarAlertsEnabled {
-                    leadTimeRow
-                    workHoursRow
-                    skipKeywordsRow
-                    Text("Calendar comes from your Claude Code Google Calendar connector.")
-                        .font(.custom("Lora", size: 11))
-                        .italic()
-                        .foregroundColor(MagpieColors.plumCharcoal)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.top, 8)
-            .onAppear(perform: loadBlockListIfNeeded)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 11))
-                    .foregroundColor(MagpieColors.plumCharcoal)
-                Text("Calendar")
-                    .font(.caption)
-                    .foregroundColor(MagpieColors.darkPlum)
-            }
+                .labelsHidden()
         }
-    }
-
-    private var leadTimeRow: some View {
-        HStack {
-            Text("Lead time")
-                .font(.caption2)
-                .foregroundColor(MagpieColors.plumCharcoal)
-            Spacer()
-            Picker("", selection: $leadTimeSeconds) {
-                Text("0s").tag(0)
-                Text("30s").tag(30)
-                Text("1m").tag(60)
-                Text("5m").tag(300)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 160)
-        }
-    }
-
-    private var workHoursRow: some View {
-        HStack {
-            Text("Work hours")
-                .font(.caption2)
-                .foregroundColor(MagpieColors.plumCharcoal)
-            Spacer()
-            hourStepper(value: $workStartHour, label: "from")
-            Text("—")
-                .font(.caption2)
-                .foregroundColor(MagpieColors.plumCharcoal)
-            hourStepper(value: $workEndHour, label: "to")
-        }
-    }
-
-    private func hourStepper(value: Binding<Int>, label: String) -> some View {
-        Stepper(value: value, in: 0...23) {
-            Text(String(format: "%02d:00", value.wrappedValue))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(MagpieColors.darkPlum)
-                .frame(width: 44, alignment: .center)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(MagpieColors.slate.opacity(0.4), lineWidth: 0.5)
-                )
-                .accessibilityLabel("\(label) \(value.wrappedValue):00")
-        }
-        .labelsHidden()
-    }
-
-    private var skipKeywordsRow: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Skip titles containing")
-                    .font(.caption2)
-                    .foregroundColor(MagpieColors.plumCharcoal)
-                Spacer()
-            }
-            TextField("lunch, focus, blocked", text: $blockListText, onCommit: saveBlockList)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 11, design: .monospaced))
-                .onChange(of: blockListText) { _, _ in saveBlockList() }
-        }
-    }
-
-    private func loadBlockListIfNeeded() {
-        guard !blockListLoaded else { return }
-        let arr = UserDefaults.standard.stringArray(forKey: "calendarBlockList") ?? []
-        blockListText = arr.joined(separator: ", ")
-        blockListLoaded = true
-    }
-
-    private func saveBlockList() {
-        let parts = blockListText
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        UserDefaults.standard.set(parts, forKey: "calendarBlockList")
     }
 
     // MARK: - Audio Mode Section

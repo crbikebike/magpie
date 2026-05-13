@@ -93,13 +93,24 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     """
 
     /// PATH locations to search for the `claude` binary, in priority order.
-    private static let claudePaths = [
-        "/opt/homebrew/bin/claude",
-        "/usr/local/bin/claude",
-        "/usr/bin/claude",
-    ]
+    /// Includes ~/.local/bin (npm global default) and ~/.npm-global/bin.
+    private static var claudePaths: [String] {
+        let home = NSHomeDirectory()
+        return [
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            "/usr/bin/claude",
+            "\(home)/.local/bin/claude",
+            "\(home)/.npm-global/bin/claude",
+            "\(home)/.bun/bin/claude",
+            "\(home)/.volta/bin/claude",
+            "\(home)/.nvm/versions/node/current/bin/claude",
+        ]
+    }
 
-    private static let subprocessTimeout: TimeInterval = 15
+    /// 60s — first call cold-starts the model + may roundtrip to Google.
+    /// Polling fetches are usually <5s once warm.
+    private static let subprocessTimeout: TimeInterval = 60
 
     // MARK: - Public API
 
@@ -155,26 +166,34 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
 
     /// Invoke `claude -p "<prompt>"` with --allowedTools restricted to the
     /// Google Calendar connector. Captures stdout (the JSON) and stderr (for
-    /// error diagnosis). Times out at 15s.
+    /// error diagnosis). Times out at 60s (cold start can be 20–40s).
+    ///
+    /// We spawn through `$SHELL -l -c "claude ..."` so claude inherits the
+    /// user's full PATH (login shell sources zshrc/zprofile). GUI apps under
+    /// launchd otherwise only see a minimal PATH that breaks node-based CLIs.
     private func spawnClaude(prompt: String) async throws -> String {
-        guard let claudePath = Self.claudePaths.first(where: {
-            FileManager.default.isExecutableFile(atPath: $0)
-        }) else {
-            throw CalendarServiceError.binaryNotFound
+        // Best-effort path resolution — only used for the "binaryNotFound"
+        // error branch. The actual spawn uses the login shell, which will
+        // re-resolve claude on its own PATH.
+        if !Self.claudePaths.contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            if try await shellResolveClaude() == nil {
+                throw CalendarServiceError.binaryNotFound
+            }
         }
+
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        // Use env vars rather than embedding the prompt directly — avoids
+        // quoting nightmares with multi-line / JSON-bearing prompts.
+        let shellCommand = #"exec claude -p "$MAGPIE_PROMPT" --output-format text --allowedTools "$MAGPIE_TOOLS""#
 
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let proc = Process()
-            proc.executableURL = URL(fileURLWithPath: claudePath)
-            proc.arguments = [
-                "-p", prompt,
-                "--output-format", "text",
-                // NOTE: --allowedTools is the documented flag for the
-                // non-interactive `-p` invocation. The exact glob may need to
-                // be tightened (e.g. mcp__claude_ai_Google_Calendar__list_events)
-                // — verify on the target Claude Code build during smoke test.
-                "--allowedTools", "mcp__claude_ai_Google_Calendar__*",
-            ]
+            proc.executableURL = URL(fileURLWithPath: shell)
+            proc.arguments = ["-l", "-c", shellCommand]
+            var env = ProcessInfo.processInfo.environment
+            env["MAGPIE_PROMPT"] = prompt
+            env["MAGPIE_TOOLS"] = "mcp__claude_ai_Google_Calendar__*"
+            proc.environment = env
 
             let outPipe = Pipe()
             let errPipe = Pipe()
@@ -249,6 +268,52 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
                 timeoutWork.cancel()
                 resumeOnce(.failure(error))
             }
+        }
+    }
+
+    // MARK: - Shell-based path resolution
+
+    /// Ask the user's login shell where `claude` lives. Used only to decide
+    /// whether to surface `.binaryNotFound` to the UI — the actual spawn
+    /// runs through the login shell directly.
+    private func shellResolveClaude() async throws -> String? {
+        try? await withCheckedThrowingContinuation { (cont: CheckedContinuation<String?, Error>) in
+            let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: shell)
+            proc.arguments = ["-l", "-c", "command -v claude"]
+            let outPipe = Pipe()
+            proc.standardOutput = outPipe
+            proc.standardError = FileHandle.nullDevice
+            proc.standardInput = FileHandle.nullDevice
+
+            var resumed = false
+            let lock = NSLock()
+            func resume(_ v: String?) {
+                lock.lock(); defer { lock.unlock() }
+                guard !resumed else { return }
+                resumed = true
+                cont.resume(returning: v)
+            }
+
+            // 5s shell-resolve cap.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+                if proc.isRunning { proc.terminate() }
+                resume(nil)
+            }
+
+            proc.terminationHandler = { _ in
+                let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let path = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let path, !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
+                    resume(path)
+                } else {
+                    resume(nil)
+                }
+            }
+
+            do { try proc.run() } catch { resume(nil) }
         }
     }
 
