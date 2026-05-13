@@ -164,35 +164,50 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
 
     // MARK: - Subprocess
 
+    /// Resolved tooling — claude's absolute path + the PATH env to give it
+    /// (so claude can find its `node` interpreter). Resolved once via a
+    /// login-shell `command -v` lookup, then cached for the lifetime of the
+    /// app so we don't re-source zshrc/zprofile on every fetch (which is
+    /// what caused TCC permission prompts to appear for user folders that
+    /// the user's shell config happens to touch).
+    private struct Tooling {
+        let claudePath: String
+        let pathEnv: String
+    }
+    private static var cachedTooling: Tooling?
+    private static let cacheLock = NSLock()
+
     /// Invoke `claude -p "<prompt>"` with --allowedTools restricted to the
     /// Google Calendar connector. Captures stdout (the JSON) and stderr (for
     /// error diagnosis). Times out at 60s (cold start can be 20–40s).
     ///
-    /// We spawn through `$SHELL -l -c "claude ..."` so claude inherits the
-    /// user's full PATH (login shell sources zshrc/zprofile). GUI apps under
-    /// launchd otherwise only see a minimal PATH that breaks node-based CLIs.
+    /// First-call only: spawns a login shell to resolve claude's path and
+    /// PATH from the user's shell config. Cached after that. Subsequent
+    /// fetches spawn claude directly with the cached env — no shell sourcing,
+    /// no spurious TCC prompts.
     private func spawnClaude(prompt: String) async throws -> String {
-        // Best-effort path resolution — only used for the "binaryNotFound"
-        // error branch. The actual spawn uses the login shell, which will
-        // re-resolve claude on its own PATH.
-        if !Self.claudePaths.contains(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
-            if try await shellResolveClaude() == nil {
-                throw CalendarServiceError.binaryNotFound
-            }
-        }
-
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        // Use env vars rather than embedding the prompt directly — avoids
-        // quoting nightmares with multi-line / JSON-bearing prompts.
-        let shellCommand = #"exec claude -p "$MAGPIE_PROMPT" --output-format text --allowedTools "$MAGPIE_TOOLS""#
+        let tooling = try await resolveTooling()
 
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let proc = Process()
-            proc.executableURL = URL(fileURLWithPath: shell)
-            proc.arguments = ["-l", "-c", shellCommand]
-            var env = ProcessInfo.processInfo.environment
-            env["MAGPIE_PROMPT"] = prompt
-            env["MAGPIE_TOOLS"] = "mcp__claude_ai_Google_Calendar__*"
+            proc.executableURL = URL(fileURLWithPath: tooling.claudePath)
+            proc.arguments = [
+                "-p", prompt,
+                "--output-format", "text",
+                "--allowedTools", "mcp__claude_ai_Google_Calendar__*",
+            ]
+            // Minimal env: PATH (so claude can find node), HOME (so claude
+            // can find ~/.claude/), USER, TMPDIR. Everything else stripped
+            // — fewer attack surfaces for TCC prompts via tooling that
+            // probes weird directories.
+            var env: [String: String] = [
+                "PATH": tooling.pathEnv,
+                "HOME": NSHomeDirectory(),
+                "USER": NSUserName(),
+            ]
+            if let tmp = ProcessInfo.processInfo.environment["TMPDIR"] {
+                env["TMPDIR"] = tmp
+            }
             proc.environment = env
 
             let outPipe = Pipe()
@@ -271,17 +286,65 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         }
     }
 
-    // MARK: - Shell-based path resolution
+    // MARK: - Tooling resolution
 
-    /// Ask the user's login shell where `claude` lives. Used only to decide
-    /// whether to surface `.binaryNotFound` to the UI — the actual spawn
-    /// runs through the login shell directly.
-    private func shellResolveClaude() async throws -> String? {
-        try? await withCheckedThrowingContinuation { (cont: CheckedContinuation<String?, Error>) in
+    /// Return cached tooling or resolve it.
+    ///
+    /// Resolution order:
+    ///   1. Cache hit → return it.
+    ///   2. Try hardcoded paths (homebrew, ~/.local/bin, etc.). If claude is
+    ///      there, build a PATH from the standard system dirs + dirname(claude)
+    ///      so node can be found alongside it.
+    ///   3. Fall back to a one-time `$SHELL -l -c` lookup that prints both
+    ///      `command -v claude` and `$PATH`. Cache and return.
+    ///   4. None of the above → `.binaryNotFound`.
+    private func resolveTooling() async throws -> Tooling {
+        if let cached = Self.read(cache: { $0 }) { return cached }
+
+        // Try hardcoded paths first — covers npm-global installs at known
+        // locations without ever spawning a shell.
+        if let direct = Self.claudePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            let dir = (direct as NSString).deletingLastPathComponent
+            let fallbackPath = [
+                dir,
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/bin",
+            ].joined(separator: ":")
+            let tooling = Tooling(claudePath: direct, pathEnv: fallbackPath)
+            Self.write(cache: tooling)
+            return tooling
+        }
+
+        // Last resort — one login-shell invocation to get both pieces.
+        if let resolved = await shellResolveTooling() {
+            Self.write(cache: resolved)
+            return resolved
+        }
+
+        throw CalendarServiceError.binaryNotFound
+    }
+
+    private static func read<T>(cache: (Tooling) -> T) -> T? {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        return cachedTooling.map(cache)
+    }
+
+    private static func write(cache value: Tooling) {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        cachedTooling = value
+    }
+
+    /// One-time login-shell lookup. Returns nil if shell can't be invoked or
+    /// claude isn't on the user's PATH.
+    private func shellResolveTooling() async -> Tooling? {
+        await withCheckedContinuation { (cont: CheckedContinuation<Tooling?, Never>) in
             let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: shell)
-            proc.arguments = ["-l", "-c", "command -v claude"]
+            // Single line of stdout: "<claude-path>|<PATH>"
+            proc.arguments = ["-l", "-c", #"printf '%s|%s\n' "$(command -v claude)" "$PATH""#]
             let outPipe = Pipe()
             proc.standardOutput = outPipe
             proc.standardError = FileHandle.nullDevice
@@ -289,14 +352,14 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
 
             var resumed = false
             let lock = NSLock()
-            func resume(_ v: String?) {
+            func resume(_ v: Tooling?) {
                 lock.lock(); defer { lock.unlock() }
                 guard !resumed else { return }
                 resumed = true
                 cont.resume(returning: v)
             }
 
-            // 5s shell-resolve cap.
+            // 5s cap — login shell should resolve fast.
             DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
                 if proc.isRunning { proc.terminate() }
                 resume(nil)
@@ -304,13 +367,18 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
 
             proc.terminationHandler = { _ in
                 let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-                let path = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if let path, !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
-                    resume(path)
-                } else {
-                    resume(nil)
-                }
+                guard let raw = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !raw.isEmpty
+                else { resume(nil); return }
+                let parts = raw.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+                guard parts.count == 2 else { resume(nil); return }
+                let path = String(parts[0])
+                let pathEnv = String(parts[1])
+                guard !path.isEmpty,
+                      FileManager.default.isExecutableFile(atPath: path)
+                else { resume(nil); return }
+                resume(Tooling(claudePath: path, pathEnv: pathEnv))
             }
 
             do { try proc.run() } catch { resume(nil) }
