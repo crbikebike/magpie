@@ -69,10 +69,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 300, height: 400)
+        popover.contentSize = NSSize(width: 320, height: 400)
         popover.behavior = .applicationDefined
+        popover.animates = true
+        // Content-driven sizing. RecorderView measures its natural height via a
+        // GeometryReader-in-background (read-only pass — does NOT use
+        // sizingOptions or autoresizingMask, both of which feed Tahoe's
+        // _NSDetectedLayoutRecursion path per issues #4, #6, #11) and
+        // forwards it here. We clamp + dedupe before assigning so a flurry of
+        // identical reports during one layout pass doesn't churn the panel.
+        let rootView = RecorderView(onHeightChange: { [weak self] reported in
+            guard let self else { return }
+            let clamped = max(220, min(900, ceil(reported)))
+            let newSize = NSSize(width: 320, height: clamped)
+            guard self.popover.contentSize != newSize else { return }
+            self.popover.contentSize = newSize
+        })
         popover.contentViewController = NSHostingController(
-            rootView: RecorderView().environmentObject(recorder)
+            rootView: rootView.environmentObject(recorder)
         )
         showOnboardingPanelIfNeeded()
         // Install watcher if vault already configured (returning user)
