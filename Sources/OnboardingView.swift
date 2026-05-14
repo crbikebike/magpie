@@ -24,13 +24,19 @@ struct OnboardingView: View {
     let calendarService: CalendarService
     var onDone: (() -> Void)? = nil
 
-    @State private var calendarBranch: CalendarOnboardingBranch = .probing
+    @State private var calendarBranch: CalendarOnboardingBranch
     @State private var probeTask: Task<Void, Never>? = nil
     @State private var calendarSetupRequested = false
 
     init(calendarService: CalendarService = CalendarService(), onDone: (() -> Void)? = nil) {
         self.calendarService = calendarService
         self.onDone = onDone
+        // Returning users (alerts previously enabled) see the Done badge; new
+        // users see the Set up button. Either way we do NOT auto-probe on
+        // appear — a probe spawns `claude`, which can trigger TCC dialogs for
+        // whatever the spawned process or its shell wrapper happens to touch.
+        let alreadyEnabled = UserDefaults.standard.bool(forKey: CalendarPrefs.alertsEnabled)
+        _calendarBranch = State(initialValue: alreadyEnabled ? .ready : .signedOut)
     }
 
     var body: some View {
@@ -114,7 +120,6 @@ struct OnboardingView: View {
             .frame(width: 320)
         }
         .frame(width: 320)
-        .onAppear { runProbeIfNeeded() }
         .onDisappear { probeTask?.cancel() }
     }
 
@@ -436,15 +441,6 @@ struct OnboardingView: View {
     private enum ChipTone { case amber, sage }
 
     // MARK: - Probe
-
-    private func runProbeIfNeeded() {
-        // Only probe automatically when the user has previously turned alerts on —
-        // for a first-time user the calendar row stays collapsed until they tap "Set up".
-        if UserDefaults.standard.bool(forKey: CalendarPrefs.alertsEnabled) {
-            calendarSetupRequested = true
-            runProbe()
-        }
-    }
 
     private func runProbe() {
         probeTask?.cancel()
