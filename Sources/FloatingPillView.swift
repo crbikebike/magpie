@@ -94,20 +94,40 @@ private struct RavenGlyph: View {
 // MARK: - Pulsing record dot
 
 private struct RecordingDot: View {
-    // Static dot — no animation. The pre-refactor pill also drew a static
-    // dot (its value-driven .animation(value: isRecording) was a no-op
-    // because the value never changed during recording). The post-refactor
-    // .onAppear { withAnimation.repeatForever } toggled state every 1.6s,
-    // forcing every-frame SwiftUI invalidation. On a borderless+nonactivating
-    // panel that's enough to keep AppKit's display-cycle observer in a
-    // perpetually-pending state, which fires _NSDetectedLayoutRecursion at
-    // first paint and SwiftUI silently drops the render pass — pill ordered
-    // front, nothing drawn. Issue #13.
+    // Pulse via TimelineView, NOT .onAppear { withAnimation.repeatForever }.
+    // TimelineView re-renders its body off SwiftUI's render clock; the
+    // invalidation stays inside the timeline subtree and doesn't propagate
+    // back through the hosting view's measurement loop, so it doesn't fire
+    // _NSDetectedLayoutRecursion the way the previous repeatForever
+    // animation did (issue #13). Throttled to 30Hz — plenty smooth for a
+    // pulse, half the work of display-refresh.
+    //
+    // Visual matches the design's CSS keyframes:
+    //   dot opacity:  1.0 → 0.55 → 1.0
+    //   ring stroke:  scale 1.0 → 1.75, opacity 0.28 → 0
+    // both phased on a 1.6s sine.
     var body: some View {
-        Circle()
-            .fill(MagpieColors.sandstone)
-            .frame(width: 8, height: 8)
-            .accessibilityHidden(true)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let phase = t.truncatingRemainder(dividingBy: 1.6) / 1.6  // 0..1
+            let s = sin(phase * .pi)                                  // 0..1..0
+            let dotOpacity = 1.0 - 0.45 * s
+            let ringScale = 1.0 + 0.75 * s
+            let ringOpacity = 0.28 * (1 - s)
+
+            Circle()
+                .fill(MagpieColors.sandstone)
+                .frame(width: 8, height: 8)
+                .opacity(dotOpacity)
+                .overlay(
+                    Circle()
+                        .stroke(MagpieColors.sandstone.opacity(ringOpacity),
+                                lineWidth: 1.5)
+                        .scaleEffect(ringScale)
+                )
+        }
+        .frame(width: 8, height: 8)
+        .accessibilityHidden(true)
     }
 }
 
