@@ -50,6 +50,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var calendarPrefCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Belt-and-suspenders with NSSupportsAutomaticTermination=false in
+        // Info.plist (issue #7). The popover-driven menubar app has no
+        // standard windows when the popover is closed, so AppKit's TAL
+        // would otherwise reap the GUI ~60s after dismissal — leaving the
+        // watcher running and the user wondering why the pill never appears
+        // on the next recording.
+        ProcessInfo.processInfo.disableAutomaticTermination(
+            "Magpie hosts a menubar UI and the floating recording pill; the GUI must outlive popover dismissal."
+        )
+
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -268,6 +278,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             hotkeyMonitor = nil
         }
+    }
+
+    /// Refuse termination while a recording or transcription is in flight —
+    /// losing the GUI mid-recording would orphan the audio file and leave
+    /// the user with nothing to show for it.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if recorder.isRecording || recorder.activeTranscriptions > 0 {
+            return .terminateCancel
+        }
+        return .terminateNow
     }
 
     func showOnboardingPanelIfNeeded() {

@@ -84,6 +84,10 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>APPL</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>14.4</string>
     <key>NSPrincipalClass</key>
