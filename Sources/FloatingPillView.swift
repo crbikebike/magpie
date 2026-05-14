@@ -28,33 +28,32 @@ struct FloatingPillView: View {
     @EnvironmentObject var model: RecorderModel
 
     var body: some View {
-        // No SwiftUI .animation on pillMode here — AppKit's
-        // FloatingPillWindow.applyHeight(for:) already animates the panel
-        // (and now the hosting-view frame) via NSAnimationContext. Stacking
-        // a SwiftUI spring on top kept the layout pass open while the
-        // AppKit animation scheduled another invalidation, which is one
-        // of the recursion vectors called out in issue #11.
-        Color.clear
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .topLeading) {
-                pill
-            }
+        // Root view is structurally stable: always renders a pill (never
+        // EmptyView). Window-level orderOut handles "truly hidden". The
+        // EmptyView ↔ content swap on first paint was the recursion source
+        // — issue #13 bisected the regression to cd9d0b3 and called this
+        // out as the cleanest delta to revert.
+        pill
+            .frame(width: 320, alignment: .topLeading)
+            .opacity(model.pillMode == .hidden ? 0 : 1)
     }
 
     @ViewBuilder
     private var pill: some View {
         switch model.pillMode {
-        case .hidden:
-            EmptyView()
-        case .recording:
+        case .hidden, .recording:
             RecordingPill()
         case .idlePrompt:
             if let prompt = model.pendingPrompt {
                 IdlePromptPill(prompt: prompt)
+            } else {
+                RecordingPill()
             }
         case .recordingWithDrawer:
             if let prompt = model.pendingPrompt {
                 RecordingDrawerPill(prompt: prompt)
+            } else {
+                RecordingPill()
             }
         }
     }
@@ -95,18 +94,19 @@ private struct RavenGlyph: View {
 // MARK: - Pulsing record dot
 
 private struct RecordingDot: View {
-    @State private var phase: Bool = false
-
+    // Static dot — no animation. The pre-refactor pill also drew a static
+    // dot (its value-driven .animation(value: isRecording) was a no-op
+    // because the value never changed during recording). The post-refactor
+    // .onAppear { withAnimation.repeatForever } toggled state every 1.6s,
+    // forcing every-frame SwiftUI invalidation. On a borderless+nonactivating
+    // panel that's enough to keep AppKit's display-cycle observer in a
+    // perpetually-pending state, which fires _NSDetectedLayoutRecursion at
+    // first paint and SwiftUI silently drops the render pass — pill ordered
+    // front, nothing drawn. Issue #13.
     var body: some View {
         Circle()
             .fill(MagpieColors.sandstone)
             .frame(width: 8, height: 8)
-            .opacity(phase ? 0.55 : 1.0)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                    phase = true
-                }
-            }
             .accessibilityHidden(true)
     }
 }
