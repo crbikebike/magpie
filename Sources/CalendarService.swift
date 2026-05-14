@@ -292,38 +292,80 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     ///
     /// Resolution order:
     ///   1. Cache hit → return it.
-    ///   2. Try hardcoded paths (homebrew, ~/.local/bin, etc.). If claude is
-    ///      there, build a PATH from the standard system dirs + dirname(claude)
-    ///      so node can be found alongside it.
-    ///   3. Fall back to a one-time `$SHELL -l -c` lookup that prints both
-    ///      `command -v claude` and `$PATH`. Cache and return.
+    ///   2. Walk hardcoded paths (homebrew, ~/.local/bin, etc.). For each
+    ///      executable candidate, run `--version` under the same locked-down
+    ///      env we'd use for real fetches and skip ones that fail. Cache and
+    ///      return the first that passes.
+    ///   3. Fall back to a `$SHELL -l -c` lookup that prints both
+    ///      `command -v claude` and `$PATH`. Verify it the same way.
     ///   4. None of the above → `.binaryNotFound`.
     private func resolveTooling() async throws -> Tooling {
         if let cached = Self.read(cache: { $0 }) { return cached }
 
-        // Try hardcoded paths first — covers npm-global installs at known
-        // locations without ever spawning a shell.
-        if let direct = Self.claudePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
-            let dir = (direct as NSString).deletingLastPathComponent
-            let fallbackPath = [
+        // Walk the hardcoded paths, but actually invoke each candidate with
+        // `--version` under our locked-down env before caching. Skips wrapper
+        // shims that work in the user's interactive shell but fail under the
+        // PATH we hand subprocesses (the bug that masked ~/.local/bin/claude
+        // behind a broken /opt/homebrew/bin/claude wrapper).
+        for path in Self.claudePaths where FileManager.default.isExecutableFile(atPath: path) {
+            let dir = (path as NSString).deletingLastPathComponent
+            let pathEnv = [
                 dir,
                 "/opt/homebrew/bin",
                 "/usr/local/bin",
                 "/usr/bin",
                 "/bin",
             ].joined(separator: ":")
-            let tooling = Tooling(claudePath: direct, pathEnv: fallbackPath)
-            Self.write(cache: tooling)
-            return tooling
+            let candidate = Tooling(claudePath: path, pathEnv: pathEnv)
+            if await verify(candidate) {
+                Self.write(cache: candidate)
+                return candidate
+            }
+            log("CalendarService: candidate \(path) failed --version probe, skipping")
         }
 
-        // Last resort — one login-shell invocation to get both pieces.
-        if let resolved = await shellResolveTooling() {
+        // Last resort — login-shell lookup. Verify it too: the shell's
+        // `command -v` can resolve to the same broken wrapper.
+        if let resolved = await shellResolveTooling(), await verify(resolved) {
             Self.write(cache: resolved)
             return resolved
         }
 
         throw CalendarServiceError.binaryNotFound
+    }
+
+    /// Run `<claudePath> --version` under the same env we'd use for real
+    /// fetches. Returns true iff exit 0 within 5s.
+    private func verify(_ tooling: Tooling) async -> Bool {
+        await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: tooling.claudePath)
+            proc.arguments = ["--version"]
+            proc.environment = [
+                "PATH": tooling.pathEnv,
+                "HOME": NSHomeDirectory(),
+                "USER": NSUserName(),
+            ]
+            proc.standardOutput = FileHandle.nullDevice
+            proc.standardError = FileHandle.nullDevice
+            proc.standardInput = FileHandle.nullDevice
+
+            var resumed = false
+            let lock = NSLock()
+            func resume(_ ok: Bool) {
+                lock.lock(); defer { lock.unlock() }
+                guard !resumed else { return }
+                resumed = true
+                cont.resume(returning: ok)
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+                if proc.isRunning { proc.terminate() }
+                resume(false)
+            }
+            proc.terminationHandler = { p in resume(p.terminationStatus == 0) }
+            do { try proc.run() } catch { resume(false) }
+        }
     }
 
     private static func read<T>(cache: (Tooling) -> T) -> T? {
