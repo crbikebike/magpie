@@ -4,7 +4,7 @@
 
 A magpie for your meetings. Collects what matters, leaves the rest.
 
-Records meetings, transcribes them with [yap](https://github.com/ggerganov/whisper.cpp), and auto-generates a summary + topic list using Claude.
+Records meetings, transcribes them with [whisper.cpp](https://github.com/ggerganov/whisper.cpp), and auto-generates a summary + topic list using Claude.
 
 ## What you get
 
@@ -33,7 +33,7 @@ Magpie outputs plain markdown. It works well as the capture layer for a larger s
 
 **After installing:**
 
-- Install yap: `brew install yap`
+- Install whisper-cpp: `brew install whisper-cpp`
 - Open Magpie from Applications
 - Choose your output folder and grant Microphone access
 
@@ -43,7 +43,7 @@ Magpie outputs plain markdown. It works well as the capture layer for a larger s
 
 ```bash
 git clone https://github.com/crbikebike/magpie.git ~/magpie
-brew install yap
+brew install whisper-cpp
 bash ~/magpie/bin/build.sh
 ```
 

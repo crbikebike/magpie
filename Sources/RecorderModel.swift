@@ -564,6 +564,8 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     private func transcribe(audioURL: URL, durationSeconds: Int, mode: AudioMode, title: String? = nil) async {
         let isCAF = audioURL.pathExtension.lowercased() == "caf"
         var convertedM4A: URL? = nil
+        var tempWAV: URL? = nil
+        var tempTxtBase: URL? = nil
         var retainedAudio = false
 
         defer {
@@ -579,16 +581,24 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
                     try? FileManager.default.removeItem(at: audioURL)
                 }
             }
+            // Throwaway WAV is always deleted — whisper-cli only needed it as input.
+            if let wav = tempWAV {
+                try? FileManager.default.removeItem(at: wav)
+            }
+            // whisper-cli writes <base>.txt — clean it up.
+            if let base = tempTxtBase {
+                try? FileManager.default.removeItem(at: base.appendingPathExtension("txt"))
+            }
         }
 
-        let yapInputURL: URL
+        let audioInputURL: URL
         if isCAF {
             let m4a = audioURL.deletingPathExtension().appendingPathExtension("m4a")
             convertedM4A = m4a
             do {
                 log("Converting CAF→M4A: \(audioURL.lastPathComponent)", vaultPath: vaultPath)
                 try await convertCAFtoM4A(src: audioURL, dst: m4a)
-                yapInputURL = m4a
+                audioInputURL = m4a
             } catch {
                 log("CAF→M4A conversion failed: \(error.localizedDescription)", vaultPath: vaultPath)
                 try? FileManager.default.removeItem(at: audioURL)
@@ -600,11 +610,11 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
                 return
             }
         } else {
-            yapInputURL = audioURL
+            audioInputURL = audioURL
         }
 
         let vault = vaultPath
-        log("Transcription started — \(yapInputURL.lastPathComponent), \(durationSeconds)s", vaultPath: vault)
+        log("Transcription started — \(audioInputURL.lastPathComponent), \(durationSeconds)s", vaultPath: vault)
 
         guard let vault else {
             log("ERROR: No vault configured", vaultPath: nil)
@@ -617,65 +627,94 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             return
         }
 
-        guard let yapPath = findExecutable("yap") else {
-            log("ERROR: yap not found — checked /opt/homebrew/bin, /usr/local/bin, /usr/bin", vaultPath: vault)
-            try? FileManager.default.removeItem(at: audioURL)
-            if let m4a = convertedM4A { try? FileManager.default.removeItem(at: m4a) }
+        guard let whisperPath = findExecutable("whisper-cli") else {
+            log("ERROR: whisper-cli not found — checked /opt/homebrew/bin, /usr/local/bin, /usr/bin", vaultPath: vault)
             DispatchQueue.main.async {
                 self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
-                self.showYapMissingAlert()
+                self.showWhisperMissingAlert()
+            }
+            return
+        }
+
+        guard let modelURL = Bundle.main.url(
+            forResource: "ggml-small.en-q5_0",
+            withExtension: "bin"
+        ) else {
+            log("ERROR: Whisper model not found in bundle — Resources/ggml-small.en-q5_0.bin missing", vaultPath: vault)
+            DispatchQueue.main.async {
+                self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
+                self.statusMessage = "Transcription model missing — rebuild Magpie."
             }
             return
         }
 
         do {
+            // Step 1: produce the throwaway 16 kHz mono WAV that whisper-cli expects.
+            let wav = audioInputURL.deletingPathExtension().appendingPathExtension("wav")
+            tempWAV = wav
+            log("Converting \(audioInputURL.pathExtension.uppercased())→WAV (16k mono) for whisper", vaultPath: vault)
+            try convertToWAV16k(src: audioInputURL, dst: wav)
+
+            // Step 2: run whisper-cli. -of <base> makes it write <base>.txt.
+            let outBase = wav.deletingPathExtension()
+            tempTxtBase = outBase
             let proc = Process()
-            proc.executableURL = URL(fileURLWithPath: yapPath)
-            proc.arguments = ["transcribe", yapInputURL.path, "--txt"]
+            proc.executableURL = URL(fileURLWithPath: whisperPath)
+            proc.arguments = [
+                "-m", modelURL.path,
+                "-f", wav.path,
+                "-otxt",
+                "-nt",
+                "-of", outBase.path,
+            ]
             let outPipe = Pipe()
             let errPipe = Pipe()
             proc.standardOutput = outPipe
             proc.standardError = errPipe
 
-            log("Running: \(yapPath) transcribe \(yapInputURL.lastPathComponent) --txt", vaultPath: vault)
+            log("Running: whisper-cli -m \(modelURL.lastPathComponent) -f \(wav.lastPathComponent) -otxt -nt", vaultPath: vault)
             try proc.run()
 
-            // Read pipes BEFORE waitUntilExit — avoids pipe-buffer deadlock when yap
-            // produces more output than the buffer can hold.
+            // Drain pipes before waitUntilExit — whisper-cli prints progress to
+            // stdout, so a full pipe buffer would deadlock the subprocess.
             let outputData = outPipe.fileHandleForReading.readDataToEndOfFile()
             let errorData  = errPipe.fileHandleForReading.readDataToEndOfFile()
             proc.waitUntilExit()
 
-            let output = String(data: outputData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let stdoutChars = outputData.count
             let errOutput = String(data: errorData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            log("yap exit: \(proc.terminationStatus), output: \(output.count) chars", vaultPath: vault)
+            log("whisper-cli exit: \(proc.terminationStatus), stdout: \(stdoutChars) chars", vaultPath: vault)
             if !errOutput.isEmpty {
-                log("yap stderr: \(errOutput)", vaultPath: vault)
+                log("whisper-cli stderr: \(errOutput)", vaultPath: vault)
             }
 
             if proc.terminationStatus != 0 {
                 let detail = errOutput.isEmpty ? "" : ": \(errOutput)"
                 throw NSError(
-                    domain: "Yap",
+                    domain: "Whisper",
                     code: Int(proc.terminationStatus),
                     userInfo: [NSLocalizedDescriptionKey:
-                        "Transcription failed (yap exit \(proc.terminationStatus))\(detail)"]
+                        "Transcription failed (whisper-cli exit \(proc.terminationStatus))\(detail)"]
                 )
             }
 
-            if output.isEmpty {
+            // Step 3: read the transcript whisper-cli wrote to <base>.txt.
+            let txtURL = outBase.appendingPathExtension("txt")
+            let transcript = (try? String(contentsOf: txtURL, encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            if transcript.isEmpty {
                 throw NSError(
-                    domain: "Yap",
+                    domain: "Whisper",
                     code: 0,
                     userInfo: [NSLocalizedDescriptionKey:
                         "No speech detected — try a longer recording or speak closer to the mic"]
                 )
             }
 
-            let mdURL = try writeMarkdown(transcript: output, vault: vault, durationSeconds: durationSeconds, title: title)
+            let mdURL = try writeMarkdown(transcript: transcript, vault: vault, durationSeconds: durationSeconds, title: title)
             log("Saved: \(mdURL.lastPathComponent)", vaultPath: vault)
 
             // Retain audio in vault — watcher links it to the transcript, /evening cleans up after triage
@@ -716,113 +755,17 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
             if let m4a = convertedM4A {
                 try? FileManager.default.removeItem(at: m4a)
             }
-            let isTCCError = error.localizedDescription.contains("CancellationError")
             DispatchQueue.main.async {
                 self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
-                if isTCCError {
-                    self.statusMessage = "Transcription failed: speech recognition permission lost"
-                    self.showSpeechRecognitionRecoveryAlert()
-                } else {
-                    self.statusMessage = "Transcription failed: \(error.localizedDescription)"
-                }
+                self.statusMessage = "Transcription failed: \(error.localizedDescription)"
             }
         }
     }
 
-    private func showYapMissingAlert() {
+    private func showWhisperMissingAlert() {
         let alert = NSAlert()
-        alert.messageText = "Yap Not Installed"
-        alert.informativeText = "Yap is required for transcription.\n\nInstall it with:\n\n  brew install yap\n\nThen try recording again."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private func showSpeechRecognitionRecoveryAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Speech Recognition Permission Lost"
-        alert.informativeText = """
-            macOS Tahoe periodically revokes yap's speech-recognition permission — a known bug with ad-hoc signed CLI tools.
-
-            The fastest fix is to reset macOS's speech-recognition permission. This resets the grant for every app that uses speech recognition, not just yap, so any of those apps will re-prompt on next use.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Reset Permission")            // .alertFirstButtonReturn  — default
-        alert.addButton(withTitle: "Open Accessibility Settings") // .alertSecondButtonReturn — legacy fallback
-        alert.addButton(withTitle: "Cancel")                      // .alertThirdButtonReturn
-
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            resetSpeechRecognitionTCC()
-        case .alertSecondButtonReturn:
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess")!)
-        default:
-            break
-        }
-    }
-
-    /// Run `/usr/bin/tccutil reset SpeechRecognition` off the main thread, then
-    /// surface a success or failure alert back on main. Resets every app's
-    /// speech-recognition TCC grant — the message text in the parent alert
-    /// warns the user about this scope.
-    private func resetSpeechRecognitionTCC() {
-        let vault = self.vaultPath
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let proc = Process()
-            proc.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
-            proc.arguments = ["reset", "SpeechRecognition"]
-            let errPipe = Pipe()
-            proc.standardOutput = Pipe()
-            proc.standardError = errPipe
-
-            let exitStatus: Int32
-            let stderr: String
-            do {
-                try proc.run()
-                proc.waitUntilExit()
-                exitStatus = proc.terminationStatus
-                let data = errPipe.fileHandleForReading.readDataToEndOfFile()
-                stderr = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                log("tccutil reset SpeechRecognition: exit \(exitStatus)\(stderr.isEmpty ? "" : ", stderr: \(stderr)")",
-                    vaultPath: vault)
-            } catch {
-                log("tccutil reset SpeechRecognition failed to launch: \(error.localizedDescription)",
-                    vaultPath: vault)
-                DispatchQueue.main.async {
-                    self?.showResetFailureAlert(detail: error.localizedDescription)
-                }
-                return
-            }
-
-            DispatchQueue.main.async {
-                if exitStatus == 0 {
-                    self?.showResetSuccessAlert()
-                } else {
-                    let detail = stderr.isEmpty ? "tccutil exit \(exitStatus)" : stderr
-                    self?.showResetFailureAlert(detail: detail)
-                }
-            }
-        }
-    }
-
-    private func showResetSuccessAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Permission Reset"
-        alert.informativeText = "Speech-recognition permission has been reset. Try recording again — macOS will prompt to grant the permission on the next run."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private func showResetFailureAlert(detail: String) {
-        let alert = NSAlert()
-        alert.messageText = "Reset Failed"
-        alert.informativeText = """
-            Could not reset speech-recognition permission: \(detail)
-
-            As a fallback, open System Settings → Accessibility → Voice Control and toggle it on, then off.
-            """
+        alert.messageText = "whisper-cli Not Installed"
+        alert.informativeText = "whisper-cli is required for transcription.\n\nInstall it with:\n\n  brew install whisper-cpp\n\nThen try recording again."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()

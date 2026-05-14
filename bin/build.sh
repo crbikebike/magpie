@@ -139,6 +139,29 @@ cp "$REPO_ROOT/Resources/fonts/Inter-VariableFont.ttf" "$RESOURCES_DEST/fonts/"
 cp "$REPO_ROOT/Resources/fonts/Lora-VariableFont.ttf" "$RESOURCES_DEST/fonts/"
 ok "Resources bundled: raven.svg, watcher.py, fonts/Inter, fonts/Lora"
 
+# ── Whisper model ────────────────────────────────────────────────────────────
+# Magpie ships with ggml-small.en-q5_0 (~180MB) — the transcription model that
+# whisper-cli loads at runtime. The .bin lives outside git (too big); we cache
+# it in .cache/ and re-use across rebuilds.
+
+WHISPER_MODEL="ggml-small.en-q5_0.bin"
+WHISPER_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_MODEL}"
+WHISPER_CACHE_DIR="$REPO_ROOT/.cache"
+WHISPER_CACHE="$WHISPER_CACHE_DIR/$WHISPER_MODEL"
+
+if [ ! -f "$WHISPER_CACHE" ]; then
+    mkdir -p "$WHISPER_CACHE_DIR"
+    echo "→ Downloading $WHISPER_MODEL (~180MB) — one-time setup..."
+    if ! curl -fL --progress-bar -o "$WHISPER_CACHE.tmp" "$WHISPER_MODEL_URL"; then
+        rm -f "$WHISPER_CACHE.tmp"
+        err "Whisper model download failed. Check network and re-run bin/build.sh."
+    fi
+    mv "$WHISPER_CACHE.tmp" "$WHISPER_CACHE"
+fi
+
+cp "$WHISPER_CACHE" "$RESOURCES_DEST/$WHISPER_MODEL"
+ok "Whisper model bundled: $WHISPER_MODEL"
+
 # ── App Icon ─────────────────────────────────────────────────────────────────
 
 SVG_SRC="$REPO_ROOT/Resources/raven.svg"
@@ -206,7 +229,7 @@ echo ""
 echo "Launch Magpie:"
 echo "  open ~/Applications/${APP_NAME}.app"
 echo ""
-echo "Install watcher dependencies:"
-echo "  brew install yap"
+echo "Install runtime dependencies:"
+echo "  brew install whisper-cpp"
 echo "  # Claude Code must be installed and authenticated"
 echo ""

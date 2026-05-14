@@ -42,15 +42,15 @@ fi
 brew --version
 ```
 
-### Step 4: Install yap (if missing)
+### Step 4: Install whisper-cpp (if missing)
 
-yap is the local speech-to-text engine Magpie uses.
+whisper-cpp ships the `whisper-cli` binary Magpie uses for local speech-to-text. The transcription model itself is bundled inside Magpie.app, so this is the only setup step.
 
 ```bash
-if ! command -v yap &>/dev/null; then
-    brew install yap
+if ! command -v whisper-cli &>/dev/null; then
+    brew install whisper-cpp
 fi
-yap --version
+whisper-cli --version
 ```
 
 ### Step 5: Create the wiki directory structure
