@@ -528,8 +528,12 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
 
         recordingURL = nil
         currentRecordingTitle = nil
-        isRecording = false
+        // Bump activeTranscriptions BEFORE clearing isRecording so the pill's
+        // CombineLatest3 in AppDelegate never sees an intermediate
+        // (false, 0, nil) state and never emits .hidden between recording and
+        // transcription — that hide-then-show flicker was visible on stop.
         activeTranscriptions += 1
+        isRecording = false
         statusMessage = ""
 
         guard let audioURL = capturedURL else {

@@ -268,6 +268,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] mode in
                 guard let self, let pill = self.pillWindow else { return }
+                let wasVisible = pill.isVisible
+                log("pill: mode=\(mode) isRecording=\(self.recorder.isRecording) transcriptions=\(self.recorder.activeTranscriptions) prompt=\(self.recorder.pendingPrompt != nil) wasVisible=\(wasVisible)",
+                    vaultPath: self.recorder.vaultPath)
                 if mode == .hidden {
                     pill.hidePill()
                 } else {
