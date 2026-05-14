@@ -36,9 +36,6 @@ final class MeetingScheduler: @unchecked Sendable {
     /// Polling cadence — fetch upcoming events every 15 minutes.
     private static let pollInterval: TimeInterval = 15 * 60
 
-    /// 4-hour lookahead window — must match the CalendarService prompt.
-    private static let lookaheadWindow: TimeInterval = 4 * 60 * 60
-
     private var pollTimer: DispatchSourceTimer?
     private var alertTimers: [String: Timer] = [:]
     private var alertedEventIDs: Set<String> = []
@@ -128,7 +125,7 @@ final class MeetingScheduler: @unchecked Sendable {
     private func reconcileAlertTimers(with events: [CalendarEvent]) {
         let leadTime = CalendarPrefs.leadTime
         let now = Date()
-        let filtered = events.filter { passesFilters($0, now: now) }
+        let filtered = events.filter { $0.passesAlertFilters(now: now) }
 
         let liveIDs = Set(filtered.map(\.id))
 
@@ -177,27 +174,13 @@ final class MeetingScheduler: @unchecked Sendable {
         guard stillExists else { return }
 
         // Filters could have flipped (work hours rolled over, blocklist edit).
-        guard passesFilters(event, now: Date()) else { return }
+        guard event.passesAlertFilters(now: Date()) else { return }
 
         // If the user is already past the start, no prompt — they're late.
         guard event.start.timeIntervalSinceNow > -1 else { return }
 
         alertedEventIDs.insert(event.id)
         model?.pendingPrompt = CalendarPrompt(event: event)
-    }
-
-    // MARK: - Filters
-
-    private func passesFilters(_ event: CalendarEvent, now: Date) -> Bool {
-        // Declined → silent.
-        if event.status == .declined { return false }
-        // All-day → silent (doesn't represent a recordable meeting).
-        if event.allDay { return false }
-        // Outside lookahead window.
-        if event.start.timeIntervalSince(now) > Self.lookaheadWindow { return false }
-        // Past-start: only allowed by fireAlert's late-join handling.
-        if event.start.timeIntervalSinceNow < 0 { return false }
-        return true
     }
 
     // MARK: - System observers (sleep, wake, app foreground)

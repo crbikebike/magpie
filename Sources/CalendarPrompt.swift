@@ -38,6 +38,39 @@ struct CalendarEvent: Codable, Equatable, Hashable {
     func alertFireDate(leadTimeSeconds: Int) -> Date {
         start.addingTimeInterval(-TimeInterval(leadTimeSeconds))
     }
+
+    /// Friendly start-time label — "10:00", "9:45 AM" depending on locale.
+    /// Same formatting as `CalendarPrompt.startTimeLabel`.
+    var startTimeLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale.current
+        df.timeStyle = .short
+        df.dateStyle = .none
+        return df.string(from: start)
+    }
+
+    /// Shared predicate used by both `MeetingScheduler` (to decide when to
+    /// schedule alert timers) and `CalendarService` (to populate the
+    /// menubar's Upcoming list). Keeping the two in sync guarantees the UI
+    /// surfaces exactly the events that would also prompt.
+    ///
+    /// - declined → false (user already said no)
+    /// - all-day  → false (not a recordable meeting)
+    /// - outside the 4-hour lookahead → false
+    /// - already started → false (the scheduler's `fireAlert` handles
+    ///   late-join as a special case, but the UI list should not include
+    ///   meetings the user is already past)
+    func passesAlertFilters(now: Date) -> Bool {
+        if status == .declined { return false }
+        if allDay { return false }
+        if start.timeIntervalSince(now) > CalendarEvent.lookaheadWindow { return false }
+        if start.timeIntervalSince(now) < 0 { return false }
+        return true
+    }
+
+    /// 4-hour lookahead — matches the prompt sent to the Google Calendar
+    /// connector in `CalendarService`.
+    static let lookaheadWindow: TimeInterval = 4 * 60 * 60
 }
 
 // MARK: - Prompt

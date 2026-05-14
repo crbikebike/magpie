@@ -8,6 +8,7 @@
 // system-audio failures / headphone nudge / vault-not-configured.
 
 import AppKit
+import Combine
 import SwiftUI
 
 // MARK: - Tokens
@@ -264,6 +265,30 @@ private struct RecentRow: View {
     }
 }
 
+// MARK: - Upcoming event row (Upcoming · next 4h section)
+
+private struct UpcomingEventRow: View {
+    let event: CalendarEvent
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(event.title.isEmpty ? "(no title)" : event.title)
+                .font(PopToken.serifItalic11_5)
+                .italic()
+                .foregroundColor(MagpieColors.plumCharcoal)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(event.startTimeLabel)
+                .font(PopToken.mono11)
+                .foregroundColor(MagpieColors.slateText)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 2)
+        .padding(.vertical, 1)
+    }
+}
+
 // MARK: - Footer link button — design's .mb-link
 
 private struct FooterLink: View {
@@ -303,8 +328,16 @@ struct PopoverContentHeight: PreferenceKey {
 
 struct RecorderView: View {
     @EnvironmentObject var model: RecorderModel
+    @EnvironmentObject var calendarService: CalendarService
     @State private var showHeadphoneNudge = false
     @AppStorage("calendarAlertsEnabled") private var calendarAlertsEnabled: Bool = false
+
+    /// In-flight state for the manual refresh button in the Upcoming section.
+    @State private var isRefreshingUpcoming = false
+    /// Ticks every 30s while the popover is visible so the "updated Xm ago"
+    /// relative label stays current without forcing a re-fetch.
+    @State private var freshnessTick = Date()
+    private let freshnessTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     /// Fires with the popover's natural content height on every layout pass.
     /// The AppDelegate consumes this to size the NSPopover.
@@ -319,12 +352,19 @@ struct RecorderView: View {
                 PopDivider()
                 recentBlock
             }
+            if model.vaultPath != nil && calendarAlertsEnabled {
+                PopDivider()
+                upcomingBlock
+            }
             if model.vaultPath != nil {
                 PopDivider()
                 togglesBlock
             }
             PopDivider()
             footer
+        }
+        .onReceive(freshnessTimer) { now in
+            freshnessTick = now
         }
         .frame(width: 320)
         .fixedSize(horizontal: false, vertical: true)
@@ -660,6 +700,146 @@ struct RecorderView: View {
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 14)
+    }
+
+    // MARK: Upcoming block (next 4h)
+
+    /// Shows the meetings Magpie has downloaded so the user can confirm the
+    /// calendar fetch is working. Same filtered set as the scheduler's alert
+    /// timers, surfaced as a list with a freshness label and a manual ↻
+    /// refresh. Surfaces fetch errors inline so a silent failure stops
+    /// looking like "no meetings."
+    private var upcomingBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                PopSectionHead(text: "Upcoming · next 4h")
+                Spacer(minLength: 0)
+                Button(action: triggerUpcomingRefresh) {
+                    if isRefreshingUpcoming {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.55)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(MagpieColors.slateText)
+                            .frame(width: 14, height: 14)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isRefreshingUpcoming)
+                .help("Refresh upcoming meetings")
+            }
+
+            upcomingBody
+
+            freshnessLabel
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+    }
+
+    @ViewBuilder
+    private var upcomingBody: some View {
+        if let err = calendarService.lastFetchError {
+            upcomingErrorChip(err)
+        } else if calendarService.upcomingEvents.isEmpty {
+            if calendarService.lastSuccessfulFetch == nil {
+                Text(isRefreshingUpcoming ? "Checking your calendar…" : "Waiting for first fetch…")
+                    .font(PopToken.serifItalic11_5)
+                    .italic()
+                    .foregroundColor(MagpieColors.plumCharcoal)
+            } else {
+                Text("No meetings in the next 4 hours.")
+                    .font(PopToken.serifItalic11_5)
+                    .italic()
+                    .foregroundColor(MagpieColors.plumCharcoal)
+            }
+        } else {
+            let shown = Array(calendarService.upcomingEvents.prefix(5))
+            VStack(spacing: 4) {
+                ForEach(shown, id: \.id) { event in
+                    UpcomingEventRow(event: event)
+                }
+                let extra = calendarService.upcomingEvents.count - shown.count
+                if extra > 0 {
+                    HStack {
+                        Text("+\(extra) more")
+                            .font(PopToken.serifItalic11)
+                            .italic()
+                            .foregroundColor(MagpieColors.slateText)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    private func upcomingErrorChip(_ err: CalendarServiceError) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(MagpieColors.amber)
+                    .padding(.top, 1)
+                Text(err.errorDescription ?? "Calendar fetch failed.")
+                    .font(PopToken.serifItalic11_5)
+                    .italic()
+                    .foregroundColor(MagpieColors.plumCharcoal)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(MagpieColors.amber.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(MagpieColors.amber.opacity(0.35), lineWidth: 0.5)
+        )
+    }
+
+    @ViewBuilder
+    private var freshnessLabel: some View {
+        let prefix = calendarService.lastFetchError == nil ? "updated" : "last good fetch"
+        let label: String = {
+            guard let last = calendarService.lastSuccessfulFetch else {
+                return calendarService.lastFetchError == nil ? "not yet fetched" : "last good fetch: never"
+            }
+            let rel = Self.relativeTimeFormatter.localizedString(for: last, relativeTo: freshnessTick)
+            return "\(prefix) \(rel)"
+        }()
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 8, weight: .medium))
+                .foregroundColor(MagpieColors.slateText)
+            Text(label)
+                .font(PopToken.serifItalic11)
+                .italic()
+                .foregroundColor(MagpieColors.slateText)
+        }
+    }
+
+    private static let relativeTimeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    private func triggerUpcomingRefresh() {
+        guard !isRefreshingUpcoming else { return }
+        isRefreshingUpcoming = true
+        Task { @MainActor in
+            _ = try? await calendarService.fetchUpcomingEvents()
+            isRefreshingUpcoming = false
+        }
     }
 
     // MARK: Toggles block (Watcher + Calendar)

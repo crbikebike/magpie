@@ -60,6 +60,16 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     /// "last fetched X min ago" hint in preferences).
     @Published var lastSuccessfulFetch: Date? = nil
 
+    /// Filtered upcoming events from the most recent successful fetch — the
+    /// same set the scheduler would prompt for (see
+    /// `CalendarEvent.passesAlertFilters`). Drives the menubar's Upcoming
+    /// section so the user can confirm what Magpie has actually downloaded.
+    @Published var upcomingEvents: [CalendarEvent] = []
+
+    /// Most recent fetch error, cleared on the next success. Drives the
+    /// inline error chip in the menubar's Upcoming section.
+    @Published var lastFetchError: CalendarServiceError? = nil
+
     /// Strict JSON prompt — see CalendarFetchResponse for the contract.
     private static let prompt = """
     Use the Google Calendar connector to list events with start times \
@@ -124,13 +134,27 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         do {
             let output = try await spawnClaude(prompt: Self.prompt)
             let response = try decode(output: output)
+            let now = Date()
+            let filtered = response.events.filter { $0.passesAlertFilters(now: now) }
+                .sorted { $0.start < $1.start }
             await MainActor.run {
                 self.consecutiveFailures = 0
-                self.lastSuccessfulFetch = Date()
+                self.lastSuccessfulFetch = now
+                self.upcomingEvents = filtered
+                self.lastFetchError = nil
             }
             return response.events
         } catch {
-            await MainActor.run { self.consecutiveFailures += 1 }
+            let svcError: CalendarServiceError
+            if let e = error as? CalendarServiceError {
+                svcError = e
+            } else {
+                svcError = .subprocessFailed(exitCode: -1, stderr: error.localizedDescription)
+            }
+            await MainActor.run {
+                self.consecutiveFailures += 1
+                self.lastFetchError = svcError
+            }
             throw error
         }
     }

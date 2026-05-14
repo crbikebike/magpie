@@ -86,7 +86,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.popover.contentSize = newSize
         })
         popover.contentViewController = NSHostingController(
-            rootView: rootView.environmentObject(recorder)
+            rootView: rootView
+                .environmentObject(recorder)
+                .environmentObject(calendarService)
         )
         showOnboardingPanelIfNeeded()
         // Install watcher if vault already configured (returning user)
