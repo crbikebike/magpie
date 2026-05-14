@@ -70,6 +70,15 @@ final class FloatingPillWindow: NSPanel {
     func applyHeight(for mode: PillMode) {
         let newHeight = height(for: mode)
         let current = frame
+        // Bail when the height already matches (the common .hidden →
+        // .recording transition: window stays at 36pt). Even setting the
+        // hosting view's frame to its current value triggers a layout
+        // pass; wrapping a same-size setFrame in NSAnimationContext fires
+        // the animation start/end cycle for nothing. Both paths stack with
+        // SwiftUI's first-paint work and contribute to the recursion seen
+        // in issue #14.
+        guard abs(current.height - newHeight) > 0.5 else { return }
+
         // Anchor by top-left: in AppKit, the frame origin is bottom-left in
         // screen coordinates, so to keep the top edge fixed we shift origin.y
         // by (current.height - new.height).

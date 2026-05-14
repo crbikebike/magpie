@@ -94,40 +94,19 @@ private struct RavenGlyph: View {
 // MARK: - Pulsing record dot
 
 private struct RecordingDot: View {
-    // Pulse via TimelineView, NOT .onAppear { withAnimation.repeatForever }.
-    // TimelineView re-renders its body off SwiftUI's render clock; the
-    // invalidation stays inside the timeline subtree and doesn't propagate
-    // back through the hosting view's measurement loop, so it doesn't fire
-    // _NSDetectedLayoutRecursion the way the previous repeatForever
-    // animation did (issue #13). Throttled to 30Hz — plenty smooth for a
-    // pulse, half the work of display-refresh.
-    //
-    // Visual matches the design's CSS keyframes:
-    //   dot opacity:  1.0 → 0.55 → 1.0
-    //   ring stroke:  scale 1.0 → 1.75, opacity 0.28 → 0
-    // both phased on a 1.6s sine.
+    // Static dot for now. The TimelineView pulse from 6b671f8 mounts at
+    // startup (RecordingPill is always rendered now, even when
+    // pillMode==.hidden), and on Tahoe its continuous ticks coexisting
+    // with the hosting view's first display cycle is the most plausible
+    // remaining path back into the layout-recursion warning that issue
+    // #14 still observes. Pulse will return as a self-contained
+    // component once the structural picture is settled (likely via
+    // .symbolEffect(.pulse) which uses CoreAnimation, no SwiftUI churn).
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            let phase = t.truncatingRemainder(dividingBy: 1.6) / 1.6  // 0..1
-            let s = sin(phase * .pi)                                  // 0..1..0
-            let dotOpacity = 1.0 - 0.45 * s
-            let ringScale = 1.0 + 0.75 * s
-            let ringOpacity = 0.28 * (1 - s)
-
-            Circle()
-                .fill(MagpieColors.sandstone)
-                .frame(width: 8, height: 8)
-                .opacity(dotOpacity)
-                .overlay(
-                    Circle()
-                        .stroke(MagpieColors.sandstone.opacity(ringOpacity),
-                                lineWidth: 1.5)
-                        .scaleEffect(ringScale)
-                )
-        }
-        .frame(width: 8, height: 8)
-        .accessibilityHidden(true)
+        Circle()
+            .fill(MagpieColors.sandstone)
+            .frame(width: 8, height: 8)
+            .accessibilityHidden(true)
     }
 }
 
