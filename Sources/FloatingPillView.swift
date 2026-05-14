@@ -355,7 +355,9 @@ private struct RecordingDrawerPill: View {
                 .frame(height: 0.5)
                 .padding(.horizontal, 14)
 
-            // Drawer body — pale-sky tint over the whole pill's chassis.
+            // Drawer body — pale-sky gradient that fades in from the
+            // divider downward, so the eggshell head transitions into the
+            // pale-sky drawer rather than slamming against a hard edge.
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "calendar")
@@ -371,7 +373,6 @@ private struct RecordingDrawerPill: View {
                     .italic()
                     .foregroundColor(MagpieColors.slateText)
                     .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack(spacing: 6) {
                     Button(action: recordNext) {
@@ -392,9 +393,19 @@ private struct RecordingDrawerPill: View {
             .padding(.top, 12)
             .padding(.bottom, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(MagpieColors.paleSky.opacity(0.55))
+            .background(
+                LinearGradient(
+                    stops: [
+                        .init(color: MagpieColors.paleSky.opacity(0),    location: 0.0),
+                        .init(color: MagpieColors.paleSky.opacity(0.55), location: 0.30),
+                        .init(color: MagpieColors.paleSky.opacity(0.75), location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        .frame(width: 320)
+        .frame(minWidth: 220, maxWidth: 320, alignment: .topLeading)
         .background(
             PillBackground(tint: PillToken.eggshellTint,
                            border: PillToken.recordingBorder,
