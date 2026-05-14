@@ -49,7 +49,12 @@ final class FloatingPillWindow: NSPanel {
         hidesOnDeactivate = false
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = true
+        // System window shadow draws around the full content rect (320pt
+        // wide), not the SwiftUI alpha mask — so it leaks a faint outline
+        // to the right of the pill, which is hug-content and only ~175pt
+        // wide. PillBackground already draws its own SwiftUI shadow that
+        // tracks the actual pill shape, so the window shadow is redundant.
+        hasShadow = false
     }
 
     /// Show the pill at persisted position (or default).
