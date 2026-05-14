@@ -2,7 +2,7 @@ Install Magpie from source. Run these shell commands:
 
 1. Install dependencies if not already present:
    ```bash
-   brew install yap
+   brew install whisper-cpp
    ```
 
 2. Clone the repo (skip if ~/magpie already exists):
