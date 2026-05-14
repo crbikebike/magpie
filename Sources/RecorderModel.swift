@@ -721,7 +721,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
                 self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
                 if isTCCError {
                     self.statusMessage = "Transcription failed: speech recognition permission lost"
-                    self.showVoiceControlFixAlert()
+                    self.showSpeechRecognitionRecoveryAlert()
                 } else {
                     self.statusMessage = "Transcription failed: \(error.localizedDescription)"
                 }
@@ -738,24 +738,93 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         alert.runModal()
     }
 
-    private func showVoiceControlFixAlert() {
+    private func showSpeechRecognitionRecoveryAlert() {
         let alert = NSAlert()
         alert.messageText = "Speech Recognition Permission Lost"
         alert.informativeText = """
-            macOS revoked yap's speech recognition permission (a known macOS Tahoe bug with ad-hoc signed apps).
+            macOS Tahoe periodically revokes yap's speech-recognition permission — a known bug with ad-hoc signed CLI tools.
 
-            Fix — takes 10 seconds:
-            1. Open System Settings → Accessibility → Voice Control
-            2. Toggle Voice Control ON
-            3. Toggle it back OFF
-
-            That restores the permission. Your next recording will transcribe normally.
+            The fastest fix is to reset macOS's speech-recognition permission. This resets the grant for every app that uses speech recognition, not just yap, so any of those apps will re-prompt on next use.
             """
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open Accessibility Settings")
-        alert.addButton(withTitle: "Dismiss")
-        if alert.runModal() == .alertFirstButtonReturn {
+        alert.addButton(withTitle: "Reset Permission")            // .alertFirstButtonReturn  — default
+        alert.addButton(withTitle: "Open Accessibility Settings") // .alertSecondButtonReturn — legacy fallback
+        alert.addButton(withTitle: "Cancel")                      // .alertThirdButtonReturn
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            resetSpeechRecognitionTCC()
+        case .alertSecondButtonReturn:
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess")!)
+        default:
+            break
         }
+    }
+
+    /// Run `/usr/bin/tccutil reset SpeechRecognition` off the main thread, then
+    /// surface a success or failure alert back on main. Resets every app's
+    /// speech-recognition TCC grant — the message text in the parent alert
+    /// warns the user about this scope.
+    private func resetSpeechRecognitionTCC() {
+        let vault = self.vaultPath
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            proc.arguments = ["reset", "SpeechRecognition"]
+            let errPipe = Pipe()
+            proc.standardOutput = Pipe()
+            proc.standardError = errPipe
+
+            let exitStatus: Int32
+            let stderr: String
+            do {
+                try proc.run()
+                proc.waitUntilExit()
+                exitStatus = proc.terminationStatus
+                let data = errPipe.fileHandleForReading.readDataToEndOfFile()
+                stderr = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                log("tccutil reset SpeechRecognition: exit \(exitStatus)\(stderr.isEmpty ? "" : ", stderr: \(stderr)")",
+                    vaultPath: vault)
+            } catch {
+                log("tccutil reset SpeechRecognition failed to launch: \(error.localizedDescription)",
+                    vaultPath: vault)
+                DispatchQueue.main.async {
+                    self?.showResetFailureAlert(detail: error.localizedDescription)
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                if exitStatus == 0 {
+                    self?.showResetSuccessAlert()
+                } else {
+                    let detail = stderr.isEmpty ? "tccutil exit \(exitStatus)" : stderr
+                    self?.showResetFailureAlert(detail: detail)
+                }
+            }
+        }
+    }
+
+    private func showResetSuccessAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Permission Reset"
+        alert.informativeText = "Speech-recognition permission has been reset. Try recording again — macOS will prompt to grant the permission on the next run."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func showResetFailureAlert(detail: String) {
+        let alert = NSAlert()
+        alert.messageText = "Reset Failed"
+        alert.informativeText = """
+            Could not reset speech-recognition permission: \(detail)
+
+            As a fallback, open System Settings → Accessibility → Voice Control and toggle it on, then off.
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
