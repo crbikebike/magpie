@@ -308,6 +308,10 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         // PATH we hand subprocesses (the bug that masked ~/.local/bin/claude
         // behind a broken /opt/homebrew/bin/claude wrapper).
         for path in Self.claudePaths where FileManager.default.isExecutableFile(atPath: path) {
+            if Self.looksLikeShellWrapper(at: path) {
+                log("CalendarService: candidate \(path) looks like a shell-sourcing wrapper, skipping without invoking")
+                continue
+            }
             let dir = (path as NSString).deletingLastPathComponent
             let pathEnv = [
                 dir,
@@ -325,13 +329,42 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         }
 
         // Last resort — login-shell lookup. Verify it too: the shell's
-        // `command -v` can resolve to the same broken wrapper.
-        if let resolved = await shellResolveTooling(), await verify(resolved) {
+        // `command -v` can resolve to the same broken wrapper. Skip if the
+        // resolved path is itself a shell wrapper.
+        if let resolved = await shellResolveTooling(),
+           !Self.looksLikeShellWrapper(at: resolved.claudePath),
+           await verify(resolved) {
             Self.write(cache: resolved)
             return resolved
         }
 
         throw CalendarServiceError.binaryNotFound
+    }
+
+    /// Inspect a candidate's shebang. Returns true if the file is a shell
+    /// script whose interpreter would source the user's rc files (which can
+    /// touch arbitrary user folders and trip TCC dialogs attributed to
+    /// Magpie). Skipping these without invoking is the only way to keep the
+    /// first launch quiet on a freshly-reinstalled bundle.
+    ///
+    /// Heuristic: shebang line contains "zsh" anywhere (zsh sources zshenv
+    /// even non-interactively in many distros), or contains a login (`-l`)
+    /// or interactive (`-i`) flag for any shell.
+    private static func looksLikeShellWrapper(at path: String) -> Bool {
+        guard let fh = FileHandle(forReadingAtPath: path) else { return false }
+        defer { try? fh.close() }
+        guard let data = try? fh.read(upToCount: 256),
+              let head = String(data: data, encoding: .utf8),
+              head.hasPrefix("#!")
+        else { return false }
+        let firstLine = head.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? head
+        let lower = firstLine.lowercased()
+        if lower.contains("zsh") { return true }
+        // Match `-l` or `-i` as standalone flags (avoid matching e.g. "-list").
+        if lower.range(of: #"(?<![a-z0-9])-[li](?![a-z0-9])"#, options: .regularExpression) != nil {
+            return true
+        }
+        return false
     }
 
     /// Run `<claudePath> --version` under the same env we'd use for real
