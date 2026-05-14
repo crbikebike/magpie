@@ -514,7 +514,8 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         levelMonitor?.stop()
         levelMonitor = nil
 
-        activeSession?.stop()
+        let stoppedSession = activeSession
+        stoppedSession?.stop()
         activeSession = nil
 
         audioLevel = 0
@@ -523,6 +524,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         let duration = elapsedSeconds
         let capturedMode = audioMode
         let capturedTitle = currentRecordingTitle
+        let capturedVault = vaultPath
 
         recordingURL = nil
         currentRecordingTitle = nil
@@ -536,6 +538,18 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         }
 
         Task {
+            // Mic+System recordings produce two CAF files; mix them into audioURL
+            // before kicking off the existing CAF→M4A→Whisper pipeline. This runs
+            // in the background after isRecording=false so a back-to-back recording
+            // can start immediately.
+            if let mixed = stoppedSession as? MixedSession {
+                do {
+                    _ = try await mixed.finalizeMix()
+                } catch {
+                    log("Mix finalize failed: \(error.localizedDescription) — transcription will use whatever mixed.finalizeMix left behind",
+                        vaultPath: capturedVault)
+                }
+            }
             await self.transcribe(
                 audioURL: audioURL,
                 durationSeconds: duration,
