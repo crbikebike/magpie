@@ -284,12 +284,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         recorder.showOnboarding = true
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
             styleMask: [.titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        panel.title = "Magpie"
+        panel.title = "Magpie · First-run setup"
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.isMovableByWindowBackground = true
@@ -299,8 +299,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onDone: { [weak self] in self?.closeOnboardingPanel() }
         )
         .environmentObject(recorder)
-        panel.contentViewController = NSHostingController(rootView: content)
-        panel.setContentSize(NSSize(width: 320, height: 380))
+        let hosting = NSHostingController(rootView: content)
+        if #available(macOS 13.0, *) {
+            hosting.sizingOptions = [.preferredContentSize]
+        }
+        panel.contentViewController = hosting
+        panel.setContentSize(NSSize(width: 520, height: 720))
         panel.center()
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

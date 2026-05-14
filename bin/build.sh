@@ -96,6 +96,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>Magpie captures system audio for meeting transcription.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Magpie uses on-device speech recognition to transcribe your meetings.</string>
+    <key>ATSApplicationFontsPath</key>
+    <string>fonts/</string>
 </dict>
 </plist>
 PLIST
@@ -128,7 +130,10 @@ RESOURCES_DEST="$APP_DIR/Contents/Resources"
 mkdir -p "$RESOURCES_DEST"
 cp "$REPO_ROOT/Resources/raven.svg" "$RESOURCES_DEST/"
 cp "$REPO_ROOT/bin/watcher.py" "$RESOURCES_DEST/"
-ok "Resources bundled: raven.svg, watcher.py"
+mkdir -p "$RESOURCES_DEST/fonts"
+cp "$REPO_ROOT/Resources/fonts/Inter-VariableFont.ttf" "$RESOURCES_DEST/fonts/"
+cp "$REPO_ROOT/Resources/fonts/Lora-VariableFont.ttf" "$RESOURCES_DEST/fonts/"
+ok "Resources bundled: raven.svg, watcher.py, fonts/Inter, fonts/Lora"
 
 # ── App Icon ─────────────────────────────────────────────────────────────────
 
