@@ -352,13 +352,13 @@ struct RecorderView: View {
                 PopDivider()
                 recentBlock
             }
-            if model.vaultPath != nil && calendarAlertsEnabled {
-                PopDivider()
-                upcomingBlock
-            }
             if model.vaultPath != nil {
                 PopDivider()
                 togglesBlock
+            }
+            if model.vaultPath != nil && calendarAlertsEnabled {
+                PopDivider()
+                upcomingBlock
             }
             PopDivider()
             footer
