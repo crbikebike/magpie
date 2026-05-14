@@ -326,6 +326,11 @@ struct OnboardingView: View {
     }
 
     private var doneButton: some View {
+        // Disabled state uses the design system's pre-vetted sandstone-tint pair
+        // (sandstoneTintFg #7E3823 on sandstoneTintBg #F0D4C8) instead of cream-on-
+        // faint-tint. The design's inline rgba(176,83,58, .55/.18) flattens to a
+        // cream-on-eggshell that's effectively unreadable; the tint tokens carry
+        // the same sandstone family with real contrast.
         Button {
             model.showOnboarding = false
             model.refreshPermissions()
@@ -334,13 +339,13 @@ struct OnboardingView: View {
             Text("Done")
                 .font(Self.sansDone)
                 .foregroundColor(canFinish ? MagpieColors.onSandstone
-                                            : MagpieColors.onSandstone.opacity(0.55))
+                                            : MagpieColors.sandstoneTintFg)
                 .padding(.horizontal, 22)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(canFinish ? MagpieColors.sandstone
-                                        : MagpieColors.sandstone.opacity(0.18))
+                                        : MagpieColors.sandstoneTintBg)
                 )
         }
         .buttonStyle(.plain)
