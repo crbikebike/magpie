@@ -300,9 +300,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         .environmentObject(recorder)
         let hosting = NSHostingController(rootView: content)
-        if #available(macOS 13.0, *) {
-            hosting.sizingOptions = [.preferredContentSize]
-        }
+        // NB: do NOT set hosting.sizingOptions = [.preferredContentSize].
+        // On macOS 26 (Tahoe) it loops in the constraint-update path and
+        // AppKit kills the process before the window appears. See issue #6
+        // (and #4 for the floating-pill instance of the same bug).
         panel.contentViewController = hosting
         panel.setContentSize(NSSize(width: 520, height: 720))
         panel.center()
