@@ -637,10 +637,10 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
         }
 
         guard let modelURL = Bundle.main.url(
-            forResource: "ggml-small.en-q5_0",
+            forResource: "ggml-small.en-q5_1",
             withExtension: "bin"
         ) else {
-            log("ERROR: Whisper model not found in bundle — Resources/ggml-small.en-q5_0.bin missing", vaultPath: vault)
+            log("ERROR: Whisper model not found in bundle — Resources/ggml-small.en-q5_1.bin missing", vaultPath: vault)
             DispatchQueue.main.async {
                 self.activeTranscriptions = max(self.activeTranscriptions - 1, 0)
                 self.statusMessage = "Transcription model missing — rebuild Magpie."

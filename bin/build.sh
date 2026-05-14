@@ -140,17 +140,26 @@ cp "$REPO_ROOT/Resources/fonts/Lora-VariableFont.ttf" "$RESOURCES_DEST/fonts/"
 ok "Resources bundled: raven.svg, watcher.py, fonts/Inter, fonts/Lora"
 
 # ── Whisper model ────────────────────────────────────────────────────────────
-# Magpie ships with ggml-small.en-q5_0 (~180MB) — the transcription model that
+# Magpie ships with ggml-small.en-q5_1 (~180MB) — the transcription model that
 # whisper-cli loads at runtime. The .bin lives outside git (too big); we cache
 # it in .cache/ and re-use across rebuilds.
+#
+# Note: the q5_0 variant is NOT published for small.en in the ggerganov/
+# whisper.cpp HF repo (only q5_1 and the unquantized base). The previous URL
+# returned 404 on every fresh build (issue #17).
 
-WHISPER_MODEL="ggml-small.en-q5_0.bin"
+WHISPER_MODEL="ggml-small.en-q5_1.bin"
 WHISPER_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_MODEL}"
 WHISPER_CACHE_DIR="$REPO_ROOT/.cache"
 WHISPER_CACHE="$WHISPER_CACHE_DIR/$WHISPER_MODEL"
 
 if [ ! -f "$WHISPER_CACHE" ]; then
     mkdir -p "$WHISPER_CACHE_DIR"
+    # Preflight HEAD — surfaces upstream filename drift instantly instead of
+    # failing mid-download a few hundred megabytes in.
+    if ! curl -fsIL "$WHISPER_MODEL_URL" >/dev/null; then
+        err "Whisper model URL no longer resolves: $WHISPER_MODEL_URL"
+    fi
     echo "→ Downloading $WHISPER_MODEL (~180MB) — one-time setup..."
     if ! curl -fL --progress-bar -o "$WHISPER_CACHE.tmp" "$WHISPER_MODEL_URL"; then
         rm -f "$WHISPER_CACHE.tmp"
