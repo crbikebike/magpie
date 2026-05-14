@@ -177,6 +177,21 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     private static var cachedTooling: Tooling?
     private static let cacheLock = NSLock()
 
+    /// Empty, private directory used as the spawned `claude`'s cwd. Without
+    /// this the subprocess inherits Magpie's launch cwd (typically `/` when
+    /// launched from Finder) and claude's startup project-context walk
+    /// touches Downloads / Documents / Volumes — each one a TCC dialog
+    /// attributed to Magpie. See issue #8.
+    private static let privateCwd: URL = {
+        let base = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
+            .appendingPathComponent("Magpie", isDirectory: true)
+            .appendingPathComponent("calendar-cwd", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
+    }()
+
     /// Invoke `claude -p "<prompt>"` with --allowedTools restricted to the
     /// Google Calendar connector. Captures stdout (the JSON) and stderr (for
     /// error diagnosis). Times out at 60s (cold start can be 20–40s).
@@ -191,6 +206,7 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: tooling.claudePath)
+            proc.currentDirectoryURL = Self.privateCwd
             proc.arguments = [
                 "-p", prompt,
                 "--output-format", "text",
@@ -373,6 +389,7 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
         await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: tooling.claudePath)
+            proc.currentDirectoryURL = Self.privateCwd
             proc.arguments = ["--version"]
             proc.environment = [
                 "PATH": tooling.pathEnv,
