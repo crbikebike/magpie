@@ -28,15 +28,17 @@ struct FloatingPillView: View {
     @EnvironmentObject var model: RecorderModel
 
     var body: some View {
+        // No SwiftUI .animation on pillMode here — AppKit's
+        // FloatingPillWindow.applyHeight(for:) already animates the panel
+        // (and now the hosting-view frame) via NSAnimationContext. Stacking
+        // a SwiftUI spring on top kept the layout pass open while the
+        // AppKit animation scheduled another invalidation, which is one
+        // of the recursion vectors called out in issue #11.
         Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .topLeading) {
                 pill
-                    .padding(.top, 0)
-                    .padding(.leading, 0)
             }
-            .animation(.spring(response: 0.32, dampingFraction: 0.86),
-                       value: model.pillMode)
     }
 
     @ViewBuilder
@@ -446,18 +448,21 @@ private struct QuietPillButtonStyle: ButtonStyle {
 private struct CountdownBar: View {
     let remaining: Double  // 1.0 → 0
 
+    // Idle prompt pill is fixed-width 320pt with 14pt horizontal inset on
+    // both sides. Hard-coding the width here so we don't need a
+    // GeometryReader inside the pill — measurement-in-layout is one of the
+    // recursion patterns issue #11 called out.
+    private static let totalWidth: CGFloat = 320 - 28
+
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(MagpieColors.slate.opacity(0.10))
-                    .frame(height: 1)
-                Capsule()
-                    .fill(MagpieColors.sandstone.opacity(0.85))
-                    .frame(width: geo.size.width * CGFloat(remaining), height: 1)
-            }
-            .frame(maxHeight: .infinity, alignment: .center)
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(MagpieColors.slate.opacity(0.10))
+                .frame(width: Self.totalWidth, height: 1)
+            Capsule()
+                .fill(MagpieColors.sandstone.opacity(0.85))
+                .frame(width: Self.totalWidth * CGFloat(remaining), height: 1)
         }
-        .frame(height: 1)
+        .frame(width: Self.totalWidth, height: 1)
     }
 }

@@ -219,10 +219,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let pill = FloatingPillWindow()
         let pillVC = NSHostingController(rootView: FloatingPillView().environmentObject(recorder))
         // Do NOT set sizingOptions = [.preferredContentSize] (issue #4/#6).
-        // Make the hosting view track the window so when applyHeight(for:)
-        // grows the panel for drawer mode the SwiftUI content sees the new
-        // height instead of staying clipped at the initial frame (issue #9).
-        pillVC.view.autoresizingMask = [.width, .height]
+        // Do NOT set autoresizingMask either — on a borderless+nonactivating
+        // panel + animated setFrame, autoresizing on the hosting view feeds
+        // _NSDetectedLayoutRecursion at first paint and SwiftUI silently
+        // drops the render pass (issue #11). Drive the hosting view's frame
+        // explicitly from FloatingPillWindow.applyHeight(for:) instead.
+        pillVC.view.translatesAutoresizingMaskIntoConstraints = true
+        pillVC.view.frame = NSRect(x: 0, y: 0, width: 320, height: 36)
         pill.contentViewController = pillVC
         pillWindow = pill
 

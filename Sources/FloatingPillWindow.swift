@@ -80,6 +80,13 @@ final class FloatingPillWindow: NSPanel {
             width: current.width,
             height: newHeight
         )
+        // Push the hosting view's frame size first so SwiftUI re-lays out at
+        // the new height in the same tick — and we don't depend on
+        // autoresizingMask (which feeds the layout recursion on Tahoe — see
+        // issue #11). Then animate the panel to match.
+        contentViewController?.view.frame = NSRect(
+            x: 0, y: 0, width: current.width, height: newHeight
+        )
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.30
             ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
