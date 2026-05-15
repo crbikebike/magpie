@@ -55,6 +55,45 @@ final class FloatingPillWindow: NSPanel {
         // wide. PillBackground already draws its own SwiftUI shadow that
         // tracks the actual pill shape, so the window shadow is redundant.
         hasShadow = false
+
+        // Instrumentation for issue #18: observe occlusion-state changes so
+        // we can tell from a vault log whether the system is hiding our
+        // window after we orderFront it.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(occlusionStateChanged(_:)),
+            name: NSWindow.didChangeOcclusionStateNotification,
+            object: self
+        )
+    }
+
+    @objc private func occlusionStateChanged(_ note: Notification) {
+        let visible = occlusionState.contains(.visible)
+        log("pill-window: occlusionState changed — visible=\(visible) isVisible=\(isVisible) frame=\(frame)")
+    }
+
+    // Instrument every visibility / frame mutation on the window so we can
+    // see from a vault log whether something other than hidePill/showPill is
+    // hiding the pill (AppKit reaper, layout-recursion silent kill, etc.).
+    override func orderFront(_ sender: Any?) {
+        super.orderFront(sender)
+        log("pill-window: orderFront — isVisible=\(isVisible) frame=\(frame) occluded=\(!occlusionState.contains(.visible))")
+    }
+
+    override func orderOut(_ sender: Any?) {
+        let callers = Thread.callStackSymbols.prefix(8).joined(separator: " | ")
+        log("pill-window: orderOut — isVisible(before)=\(isVisible) frame=\(frame) caller=\(callers)")
+        super.orderOut(sender)
+    }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(frameRect, display: flag)
+        log("pill-window: setFrame — new=\(frameRect) display=\(flag) isVisible=\(isVisible)")
+    }
+
+    override func close() {
+        log("pill-window: close — isVisible(before)=\(isVisible)")
+        super.close()
     }
 
     /// Show the pill at persisted position (or default).
@@ -62,6 +101,16 @@ final class FloatingPillWindow: NSPanel {
         let origin = loadPosition()
         setFrameOrigin(origin)
         orderFront(nil)
+        // Check what AppKit did with the window across the next runloop tick.
+        // If the pill is gone <100ms after showPill returns, this catches it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { [weak self] in
+            guard let self else { return }
+            log("pill-window: +100ms after showPill — isVisible=\(self.isVisible) alphaValue=\(self.alphaValue) frame=\(self.frame) occluded=\(!self.occlusionState.contains(.visible))")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) { [weak self] in
+            guard let self else { return }
+            log("pill-window: +500ms after showPill — isVisible=\(self.isVisible) alphaValue=\(self.alphaValue) frame=\(self.frame) occluded=\(!self.occlusionState.contains(.visible))")
+        }
     }
 
     /// Hide the pill.
