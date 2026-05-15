@@ -166,7 +166,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Wire calendar scheduling + the menubar failure dot.
     private func setupCalendar() {
-        // Amber dot overlay when fetch fails 3× in a row (and we're not currently recording).
+        // Amber dot overlay on any calendar fetch failure (and we're not
+        // currently recording). Was previously gated at ≥3 failures — a 45
+        // minute lag before the user could tell prompts had gone dark.
         failureDotCancellable = Publishers.CombineLatest(
             calendarService.$consecutiveFailures,
             recorder.$isRecording
@@ -177,9 +179,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Recording state owns the status icon while active.
             guard !isRecording, let button = self.statusItem.button else { return }
             let base = self.ravenImage() ?? NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Magpie")
-            if failures >= 3, let img = base.map({ self.imageWithAmberDot($0) }) {
+            if failures >= 1, let img = base.map({ self.imageWithAmberDot($0) }) {
                 button.image = img
-                button.toolTip = "Calendar sync failing — last 3 fetches couldn't reach Claude Code"
+                let plural = failures == 1 ? "fetch" : "fetches"
+                button.toolTip = "Calendar sync failing — last \(failures) \(plural) couldn't reach Claude Code"
             } else {
                 button.image = base
                 button.toolTip = nil

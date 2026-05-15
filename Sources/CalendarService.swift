@@ -26,8 +26,10 @@ enum CalendarServiceError: Error, LocalizedError {
     case binaryNotFound
     /// Subprocess exited non-zero. `stderr` is the captured tail (≤ 2 KB).
     case subprocessFailed(exitCode: Int32, stderr: String)
-    /// 15-second timeout elapsed before subprocess returned.
-    case timeout
+    /// 60-second timeout elapsed before subprocess returned. `stderr` is
+    /// whatever the subprocess had emitted up to the kill (≤ 2 KB) — usually
+    /// the only clue we have for why claude or the MCP connector hung.
+    case timeout(stderr: String)
     /// Output didn't contain parseable JSON in any of the three extraction stages.
     case jsonParseFailed(rawPreview: String)
     /// Strict-JSON envelope didn't decode into `CalendarFetchResponse`.
@@ -40,7 +42,9 @@ enum CalendarServiceError: Error, LocalizedError {
         case .binaryNotFound:           return "claude CLI not found on this system"
         case .subprocessFailed(let c, let s):
                                         return "claude exited \(c): \(s)"
-        case .timeout:                  return "claude calendar fetch timed out after 15s"
+        case .timeout(let stderr):
+            let tail = stderr.isEmpty ? "" : " — last stderr: \(stderr)"
+            return "claude calendar fetch timed out after 60s\(tail)"
         case .jsonParseFailed(let p):   return "calendar fetch returned non-JSON output: \(p)"
         case .schemaMismatch(let d):    return "calendar JSON did not match schema: \(d)"
         case .notAuthorized(let h):     return "Google Calendar connector not authorized: \(h)"
@@ -270,16 +274,32 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
             }
 
             // Watchdog — kill the process if it doesn't return in time.
+            // Captures whatever stderr the subprocess has emitted before/at
+            // kill so the timeout error carries diagnostic context instead of
+            // a bare "timed out" string.
             let timeoutWork = DispatchWorkItem {
-                if proc.isRunning {
-                    proc.terminate()
-                    // SIGTERM may not land instantly on hung subprocesses;
-                    // give it 1s then SIGKILL.
-                    DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
-                        if proc.isRunning { kill(proc.processIdentifier, SIGKILL) }
+                // Sample whatever stderr is already buffered before we send
+                // the signal — if claude is hung mid-stream this is usually
+                // where the explanation lives (auth retry loop, network
+                // hang, MCP startup failure).
+                let preTermStderr = errPipe.fileHandleForReading.availableData
+                if proc.isRunning { proc.terminate() }
+                // SIGTERM may not land instantly on hung subprocesses; give
+                // it 1s, then SIGKILL, then sample stderr one more time and
+                // resume with the combined output. Two-stage sampling because
+                // many client libraries flush their last error line as part
+                // of signal cleanup.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 1) {
+                    if proc.isRunning { kill(proc.processIdentifier, SIGKILL) }
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                        let postTermStderr = errPipe.fileHandleForReading.availableData
+                        let combined = String(data: preTermStderr + postTermStderr,
+                                              encoding: .utf8) ?? ""
+                        let trimmed = String(combined.prefix(2048))
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        resumeOnce(.failure(CalendarServiceError.timeout(stderr: trimmed)))
                     }
                 }
-                resumeOnce(.failure(CalendarServiceError.timeout))
             }
             DispatchQueue.global().asyncAfter(
                 deadline: .now() + Self.subprocessTimeout,
