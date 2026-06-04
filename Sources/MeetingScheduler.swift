@@ -129,7 +129,11 @@ final class MeetingScheduler: @unchecked Sendable {
         do {
             fetched = try await service.fetchUpcomingEvents()
         } catch {
-            log("CalendarService fetch failed: \(error.localizedDescription)",
+            // Log the full diagnostic for CalendarServiceError (e.g. the
+            // entire non-JSON stdout), not the bounded UI description (#19).
+            let detail = (error as? CalendarServiceError)?.diagnosticDetail
+                ?? error.localizedDescription
+            log("CalendarService fetch failed: \(detail)",
                 vaultPath: await MainActor.run { model?.vaultPath })
             fetched = nil
         }

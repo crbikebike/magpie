@@ -1,0 +1,368 @@
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 83514, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 83548, poll interval 5s
+[WATCHER] Processing 2026-04-28-205109-recording.md...
+[WATCHER] Audio linked: 2026-04-28-205109-untitled-meeting.m4a
+[WATCHER] summary: input=363 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: claude CLI NOT FOUND — is it installed?
+[WATCHER] Done: Untitled Meeting — summary=FAILED, topics=SKIPPED
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 83725, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 83730, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 83863, poll interval 5s
+[WATCHER] Processing 2026-04-28-210645-recording.md...
+[WATCHER] Audio linked: 2026-04-28-210645-untitled-meeting.m4a
+[WATCHER] summary: input=399 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: claude CLI NOT FOUND — is it installed?
+[WATCHER] Done: Untitled Meeting — summary=FAILED, topics=SKIPPED
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84149, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84176, poll interval 5s
+[WATCHER] Processing 2026-04-28-211512-recording.md...
+[WATCHER] Audio linked: 2026-04-28-211512-untitled-meeting.m4a
+[WATCHER] summary: input=430 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: claude CLI NOT FOUND — is it installed?
+[WATCHER] Done: Untitled Meeting — summary=FAILED, topics=SKIPPED
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84229, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84247, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — claude CLI not found on PATH
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84332, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84431, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 84657, poll interval 5s
+[WATCHER] Processing 2026-04-28-213543-recording.md...
+[WATCHER] Audio linked: 2026-04-28-213543-cloud-dog-initiative-launch.m4a
+[WATCHER] summary: input=1191 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=761 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=383 chars, topics=5 items, preview="The team approved the Cloud Dog Initiative launch with all 3 core deliverables c..."
+[WATCHER] Done: Cloud Dog Initiative Launch — summary=OK, topics=5
+[WATCHER] Processing 2026-04-28-214108-recording.md...
+[WATCHER] Audio linked: 2026-04-28-214108-cruise-boat-launch-prep.m4a
+[WATCHER] summary: input=1771 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=650 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=281 chars, topics=4 items, preview="The team prepares to launch a new cruise boat with the ocean filled and ready. D..."
+[WATCHER] Done: Cruise Boat Launch Prep — summary=OK, topics=4
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Created _summary-prompt.md with default prompt
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 85286, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 85515, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 85826, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 86010, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 86200, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 86559, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 86885, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 87153, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 87447, poll interval 5s
+[WATCHER] Processing 2026-04-28-223919-recording.md...
+[WATCHER] Audio linked: 2026-04-28-223919-year-2000-predictions.m4a
+[WATCHER] summary: input=386 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=519 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=186 chars, topics=1 items, preview="Child asked parent about predictions for the year 2000 in a 15-second personal c..."
+[WATCHER] Done: Year 2000 Predictions — summary=OK, topics=1
+[WATCHER] Processing 2026-04-28-223950-recording.md...
+[WATCHER] Audio linked: 2026-04-28-223950-banana-and-food-planning.m4a
+[WATCHER] summary: input=626 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=237 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=189 chars, topics=0 items, preview="Transcript is unintelligible and does not contain coherent meeting content. The ..."
+[WATCHER] Done: Banana and Food Planning — summary=OK, topics=0
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 87916, poll interval 5s
+[WATCHER] Processing 2026-04-28-224359-recording.md...
+[WATCHER] Audio linked: 2026-04-28-224359-closing-and-planning.m4a
+[WATCHER] summary: input=383 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=674 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=195 chars, topics=2 items, preview="Insufficient audio data to summarize. The 7-second transcript appears incomplete..."
+[WATCHER] Done: Closing and Planning — summary=OK, topics=2
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 2992, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 3461, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 4350, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 4698, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 5252, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 6603, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 6846, poll interval 5s
+[WATCHER] Processing 2026-05-13-115358-recording.md...
+[WATCHER] Audio linked: 2026-05-13-115358-cloud-dog-meeting.m4a
+[WATCHER] summary: input=328 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=486 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=139 chars, topics=1 items, preview="This recording contains insufficient content to summarize. Only a brief greeting..."
+[WATCHER] Done: Cloud Dog Meeting — summary=OK, topics=1
+[WATCHER] Processing 2026-05-13-153914-recording.md...
+[WATCHER] Audio linked: 2026-05-13-153914-brief-meeting.m4a
+[WATCHER] summary: input=315 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=180 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=132 chars, topics=0 items, preview="No substantive meeting content. The 7-second recording contains only a closing p..."
+[WATCHER] Done: Brief Meeting — summary=OK, topics=0
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 10129, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 12927, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 14829, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 15444, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 16889, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 17445, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 18713, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 19640, poll interval 5s
+[WATCHER] Processing 2026-05-13-212919-recording.md...
+[WATCHER] Audio linked: 2026-05-13-212919-brief-discussion.m4a
+[WATCHER] summary: input=327 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=315 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=101 chars, topics=0 items, preview="Recording too brief to summarize—7-second fragment with incomplete transcript ('..."
+[WATCHER] Done: Brief Discussion — summary=OK, topics=0
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 20508, poll interval 5s
+[WATCHER] Processing 2026-05-13-213726-recording.md...
+[WATCHER] Audio linked: 2026-05-13-213726-growth-of-the-tiger.m4a
+[WATCHER] summary: input=341 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=465 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=182 chars, topics=0 items, preview="The recording contains insufficient content to summarize (2-second duration with..."
+[WATCHER] Done: Growth of the Tiger — summary=OK, topics=0
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 21677, poll interval 5s
+[WATCHER] Processing 2026-05-13-220250-recording.md...
+[WATCHER] Audio linked: 2026-05-13-220250-insufficient-context-to-infer-title.m4a
+[WATCHER] summary: input=358 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=552 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=173 chars, topics=1 items, preview="Insufficient transcript data to summarize. The recording contains only 3 seconds..."
+[WATCHER] Done: Insufficient context to infer title — summary=OK, topics=1
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 22782, poll interval 5s
+[WATCHER] Processing 2026-05-13-221836-recording.md...
+[WATCHER] Audio linked: 2026-05-13-221836-emdr-therapy-session.m4a
+[WATCHER] summary: input=2289 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=666 chars, stderr=0 chars
+[WATCHER] summary: JSON PARSE FAILED — raw_preview=I can't generate a meaningful summary from this transcript. The audio quality appears very poor, with significant transcription errors (repetitive phrases, incomplete sentences, incoherent segments). 
+[WATCHER] Done: EMDR Therapy Session — summary=FAILED, topics=SKIPPED
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 23994, poll interval 5s
+[WATCHER] Processing 2026-05-13-222112-recording.md...
+[WATCHER] Audio linked: 2026-05-13-222112-break-even-across-states.m4a
+[WATCHER] summary: input=430 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=492 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=190 chars, topics=1 items, preview="A speaker discusses break-even status across multiple states in an 11-second fra..."
+[WATCHER] Done: Break-even Across States — summary=OK, topics=1
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 28021, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 28397, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 30899, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 31614, poll interval 5s
+[WATCHER] Processing 2026-05-14-105115-recording.md...
+[WATCHER] Audio linked: 2026-05-14-105115-spec-review-check-in.m4a
+[WATCHER] summary: input=374 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=394 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=171 chars, topics=0 items, preview="Insufficient transcript data. The recording captured only 5 seconds with one par..."
+[WATCHER] Done: Spec Review Check-in — summary=OK, topics=0
+[WATCHER] Processing 2026-05-14-105128-recording.md...
+[WATCHER] Audio linked: 2026-05-14-105128-where-are-we.m4a
+[WATCHER] summary: input=356 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=529 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=194 chars, topics=2 items, preview="Speaker asks for a status update on current work. The speaker observes that ever..."
+[WATCHER] Done: Where Are We — summary=OK, topics=2
+[WATCHER] Processing 2026-05-14-105524-recording.md...
+[WATCHER] Audio linked: 2026-05-14-105524-demand-vs-team-capacity.m4a
+[WATCHER] summary: input=949 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=944 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=411 chars, topics=5 items, preview="The team discussed balancing demand with team capacity, arguing that capacity co..."
+[WATCHER] Done: Demand vs Team Capacity — summary=OK, topics=5
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 33277, poll interval 5s
+[WATCHER] Processing 2026-05-14-113853-recording.md...
+[WATCHER] Audio linked: 2026-05-14-113853-status-sync.m4a
+[WATCHER] summary: input=317 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=214 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=166 chars, topics=0 items, preview="Insufficient content to summarize. The 3-second recording contains only a vague ..."
+[WATCHER] Done: Status Sync — summary=OK, topics=0
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 34524, poll interval 5s
+[WATCHER] Processing 2026-05-14-120123-recording.md...
+[WATCHER] Audio linked: 2026-05-14-120123-whisper-kabobber.m4a
+[WATCHER] summary: input=348 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=119 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=71 chars, topics=0 items, preview="This 5-second recording contains no meeting content—only a test phrase."
+[WATCHER] Done: Whisper Kabobber — summary=OK, topics=0
+[WATCHER] Processing 2026-05-14-131858-recording.md...
+[WATCHER] Audio linked: 2026-05-14-131858-recording-test.m4a
+[WATCHER] summary: input=363 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=215 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=115 chars, topics=1 items, preview="This was a recording test with no substantive meeting content. The speaker confi..."
+[WATCHER] Done: Recording Test — summary=OK, topics=1
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 38461, poll interval 5s
+[WATCHER] Processing 2026-05-14-131946-recording.md...
+[WATCHER] Audio linked: 2026-05-14-131946-silent-meeting.m4a
+[WATCHER] summary: input=315 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=162 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=114 chars, topics=0 items, preview="No meeting occurred. The 14-second recording contained only silence with no disc..."
+[WATCHER] Done: Silent Meeting — summary=OK, topics=0
+[WATCHER] Processing 2026-05-14-132004-recording.md...
+[WATCHER] Audio linked: 2026-05-14-132004-recording-system-test.m4a
+[WATCHER] summary: input=413 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=217 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=113 chars, topics=1 items, preview="The user conducted a brief 8-second test of the system recording and microphone ..."
+[WATCHER] Done: Recording System Test — summary=OK, topics=1
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 39394, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 40855, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 41891, poll interval 5s
+[WATCHER] Stopping...
+[WATCHER] MODEL VALIDATION FAILED — model=claude-haiku-4-5-20251001, error=timeout (10s)
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 43232, poll interval 5s
+[WATCHER] Processing 2026-05-14-135233-recording.md...
+[WATCHER] Audio linked: 2026-05-14-135233-camp-establishment-review.m4a
+[WATCHER] Stopping...
+[WATCHER] Model validation OK — model=claude-haiku-4-5-20251001
+[WATCHER] Started. Monitoring /Users/chrisrace/claude_projects/magpie/transcripts
+[WATCHER] PID 43871, poll interval 5s
+[WATCHER] Processing 2026-05-14-135318-recording.md...
+[WATCHER] Audio linked: 2026-05-14-135318-grouting-vs-inflation.m4a
+[WATCHER] summary: input=377 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=282 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=91 chars, topics=3 items, preview="Speaker presented 2 alternative approaches: inflating a rubber device or groutin..."
+[WATCHER] Done: Grouting vs Inflation — summary=OK, topics=3
+[WATCHER] Processing 2026-05-14-135516-recording.md...
+[WATCHER] Audio linked: 2026-05-14-135516-the-need-to-feel-special.m4a
+[WATCHER] summary: input=549 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=536 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=240 chars, topics=3 items, preview="1 core belief was presented: all humans fundamentally need to feel special, and ..."
+[WATCHER] Done: The Need to Feel Special — summary=OK, topics=3
+[WATCHER] Processing 2026-05-14-140440-recording.md...
+[WATCHER] Audio linked: 2026-05-14-140440-todays-agenda.m4a
+[WATCHER] summary: input=350 chars, model=claude-haiku-4-5-20251001
+[WATCHER] summary: attempt=1, exit_code=0, stdout=331 chars, stderr=0 chars
+[WATCHER] summary: OK — summary=139 chars, topics=0 items, preview="Incomplete transcript. Recording contains only 11 seconds of audio that cuts off..."
+[WATCHER] Done: Today's Agenda — summary=OK, topics=0
+[WATCHER] Stopping...
