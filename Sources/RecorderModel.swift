@@ -65,6 +65,19 @@ enum PillMode: Equatable {
     case recording
     case idlePrompt
     case recordingWithDrawer
+
+    /// Single source of truth for pill visibility/mode, shared by
+    /// `RecorderModel.pillMode` and App's Combine pipeline so the two can't
+    /// drift. Driven by `isRecording` only — a transcription still processing
+    /// after recording stops must NOT keep the pill on-screen (issue #22).
+    static func resolve(isRecording: Bool, hasPrompt: Bool) -> PillMode {
+        switch (isRecording, hasPrompt) {
+        case (false, false): return .hidden
+        case (false, true):  return .idlePrompt
+        case (true,  false): return .recording
+        case (true,  true):  return .recordingWithDrawer
+        }
+    }
 }
 
 class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
@@ -86,13 +99,7 @@ class RecorderModel: NSObject, ObservableObject, @unchecked Sendable {
     /// Drives the floating pill's render mode in a single expression. Tested
     /// by FloatingPillView's switch — keep the enum exhaustive.
     var pillMode: PillMode {
-        let active = isRecording || isTranscribing
-        switch (active, pendingPrompt != nil) {
-        case (false, false): return .hidden
-        case (false, true):  return .idlePrompt
-        case (true,  false): return .recording
-        case (true,  true):  return .recordingWithDrawer
-        }
+        PillMode.resolve(isRecording: isRecording, hasPrompt: pendingPrompt != nil)
     }
 
     /// Title supplied when `startRecording(title:)` is called from a calendar
