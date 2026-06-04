@@ -30,12 +30,25 @@ enum CalendarServiceError: Error, LocalizedError {
     /// whatever the subprocess had emitted up to the kill (≤ 2 KB) — usually
     /// the only clue we have for why claude or the MCP connector hung.
     case timeout(stderr: String)
-    /// Output didn't contain parseable JSON in any of the three extraction stages.
-    case jsonParseFailed(rawPreview: String)
+    /// Output didn't contain parseable JSON in any of the three extraction
+    /// stages. `rawOutput` is the *full* subprocess stdout: `errorDescription`
+    /// shows a bounded preview for the UI, while `diagnosticDetail` logs all
+    /// of it to the vault so the non-JSON response can be reconstructed (#19).
+    case jsonParseFailed(rawOutput: String)
+    /// Subprocess exited cleanly (status 0) but produced no stdout at all —
+    /// distinct from prose/non-JSON, and usually an MCP connector cold-start
+    /// or an OAuth token refresh eating the turn. Needs different remediation
+    /// than "claude ignored the strict-JSON instruction" (#19).
+    case emptyOutput
     /// Strict-JSON envelope didn't decode into `CalendarFetchResponse`.
     case schemaMismatch(detail: String)
     /// Connector reported an auth error in stderr / output (signed-out, not authorized).
     case notAuthorized(hint: String)
+
+    /// First 200 chars of `s`, with newlines escaped — for one-line UI display.
+    private static func preview(_ s: String) -> String {
+        String(s.prefix(200)).replacingOccurrences(of: "\n", with: "\\n")
+    }
 
     var errorDescription: String? {
         switch self {
@@ -45,9 +58,25 @@ enum CalendarServiceError: Error, LocalizedError {
         case .timeout(let stderr):
             let tail = stderr.isEmpty ? "" : " — last stderr: \(stderr)"
             return "claude calendar fetch timed out after 60s\(tail)"
-        case .jsonParseFailed(let p):   return "calendar fetch returned non-JSON output: \(p)"
+        case .jsonParseFailed(let raw):
+            return "calendar fetch returned non-JSON output: \(Self.preview(raw))"
+        case .emptyOutput:
+            return "calendar fetch returned empty output (claude exited cleanly "
+                + "but produced nothing — likely an MCP cold-start or auth refresh)"
         case .schemaMismatch(let d):    return "calendar JSON did not match schema: \(d)"
         case .notAuthorized(let h):     return "Google Calendar connector not authorized: \(h)"
+        }
+    }
+
+    /// Full, untruncated detail for the vault log. Identical to
+    /// `errorDescription` except for `jsonParseFailed`, where it carries the
+    /// entire raw stdout so we can see exactly what claude said (#19).
+    var diagnosticDetail: String {
+        switch self {
+        case .jsonParseFailed(let raw):
+            return "calendar fetch returned non-JSON output (full \(raw.count) chars): \(raw)"
+        default:
+            return errorDescription ?? "calendar fetch failed"
         }
     }
 }
@@ -137,7 +166,7 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     func fetchUpcomingEvents() async throws -> [CalendarEvent] {
         do {
             let output = try await spawnClaude(prompt: Self.prompt)
-            let response = try decode(output: output)
+            let response = try Self.decode(output: output)
             let now = Date()
             let filtered = response.events.filter { $0.passesAlertFilters(now: now) }
                 .sorted { $0.start < $1.start }
@@ -527,9 +556,16 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
     ///   1. Direct parse
     ///   2. Code-fence stripped parse (```json ... ``` blocks)
     ///   3. Balanced-brace extraction (find outermost {...})
-    private func decode(output: String) throws -> CalendarFetchResponse {
+    static func decode(output: String) throws -> CalendarFetchResponse {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         let decoder = Self.decoder
+
+        // Empty stdout is a different failure mode than non-JSON prose: the
+        // subprocess exited cleanly but said nothing (MCP cold-start / auth
+        // refresh). Surface it distinctly so remediation can branch (#19).
+        if trimmed.isEmpty {
+            throw CalendarServiceError.emptyOutput
+        }
 
         // Stage 1: direct.
         if let data = trimmed.data(using: .utf8),
@@ -560,9 +596,9 @@ final class CalendarService: ObservableObject, @unchecked Sendable {
             }
         }
 
-        let preview = String(trimmed.prefix(200))
-            .replacingOccurrences(of: "\n", with: "\\n")
-        throw CalendarServiceError.jsonParseFailed(rawPreview: preview)
+        // Carry the full output — the vault log keeps all of it (#19); the UI
+        // chip shows only a bounded preview via errorDescription.
+        throw CalendarServiceError.jsonParseFailed(rawOutput: output)
     }
 
     private static let decoder: JSONDecoder = {

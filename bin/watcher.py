@@ -90,7 +90,11 @@ def _validate_model() -> bool:
     """
     try:
         result = subprocess.run(
-            ["claude", "--model", _EXTRACTION_MODEL, "--output-format", "text", "-p", "Reply with OK"],
+            # --strict-mcp-config loads zero MCP servers (none passed via
+            # --mcp-config), so a connected tool whose name exceeds the API's
+            # 128-char limit can't 400 this call. Issue #20.
+            ["claude", "--model", _EXTRACTION_MODEL, "--strict-mcp-config",
+             "--output-format", "text", "-p", "Reply with OK"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -604,13 +608,21 @@ def infer_title_via_claude(transcript_text: str) -> str:
 
     try:
         result = subprocess.run(
-            ["claude", "--model", _EXTRACTION_MODEL, "--output-format", "text", "-p", prompt],
+            # --strict-mcp-config: no MCP tools needed for Haiku title
+            # inference; avoids the 128-char tool-name 400 (issue #20).
+            ["claude", "--model", _EXTRACTION_MODEL, "--strict-mcp-config",
+             "--output-format", "text", "-p", prompt],
             input=opening,
             capture_output=True,
             text=True,
             timeout=15,
         )
         if result.returncode != 0:
+            # Log the CLI's own error (e.g. "400 tools.N.custom.name") instead
+            # of swallowing it — this path otherwise silently degrades every
+            # title to the local fallback. Issue #20.
+            stderr_safe = result.stderr[:200].replace('\n', ' ')
+            print(f"[WATCHER] title: CLI FAILED — exit={result.returncode}, hint={stderr_safe}")
             return _infer_title_local(transcript_text)
 
         title = result.stdout.strip()
@@ -666,7 +678,10 @@ def generate_summary(transcript_path: Path) -> tuple:
         attempts = 1 + len(_RETRY_DELAYS)  # 1 initial + 2 retries
         for attempt in range(attempts):
             result = subprocess.run(
-                ["claude", "--model", _EXTRACTION_MODEL, "--output-format", "text", "-p", prompt],
+                # --strict-mcp-config: summary generation needs no MCP tools;
+                # avoids the 128-char tool-name 400 (issue #20).
+                ["claude", "--model", _EXTRACTION_MODEL, "--strict-mcp-config",
+                 "--output-format", "text", "-p", prompt],
                 input=transcript_text,
                 capture_output=True,
                 text=True,
