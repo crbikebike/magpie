@@ -44,7 +44,10 @@ final class FloatingPillWindow: NSPanel {
 
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        sharingType = .none
+        // Include the pill in screen captures / shared-screen content so
+        // viewers can see recording is in progress (issue #23). .readOnly is
+        // the AppKit default; we set it explicitly to document the intent.
+        sharingType = .readOnly
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
         backgroundColor = .clear

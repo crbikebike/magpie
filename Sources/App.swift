@@ -248,22 +248,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pill.contentViewController = pillVC
         pillWindow = pill
 
-        // Visibility + height both come from pillMode. Combine the three
-        // inputs into one stream so we only react when the mode actually
-        // changes — avoids flicker from per-tick audioLevel updates.
-        let recordingSignal = Publishers.CombineLatest3(
+        // Visibility + height both come from pillMode. Combine the inputs
+        // into one stream so we only react when the mode actually changes —
+        // avoids flicker from per-tick audioLevel updates. The pill is driven
+        // by isRecording only; an in-flight transcription must not keep it
+        // visible after recording stops (issue #22).
+        let recordingSignal = Publishers.CombineLatest(
             recorder.$isRecording,
-            recorder.$activeTranscriptions,
             recorder.$pendingPrompt
         )
-        .map { isRecording, transcriptions, prompt -> PillMode in
-            let active = isRecording || (transcriptions > 0)
-            switch (active, prompt != nil) {
-            case (false, false): return .hidden
-            case (false, true):  return .idlePrompt
-            case (true,  false): return .recording
-            case (true,  true):  return .recordingWithDrawer
-            }
+        .map { isRecording, prompt -> PillMode in
+            PillMode.resolve(isRecording: isRecording, hasPrompt: prompt != nil)
         }
         .removeDuplicates()
 

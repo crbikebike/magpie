@@ -40,5 +40,6 @@ enum TestHarness {
 runHarnessSmokeTests()
 runSchedulePlannerTests()
 runCalendarDecodeTests()
+runPillModeTests()
 
 TestHarness.finish()
