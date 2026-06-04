@@ -6,7 +6,18 @@
 
 **Architecture:** Extract the scheduler's timing/state decisions into a pure, side-effect-free `SchedulePlanner` enum (testable without subprocesses or wall-clock timers). `MeetingScheduler` keeps a last-good event cache and reconciles alert timers off it when a live fetch fails, arms a one-shot 90s retry on failure, and runs its base poll every 5 minutes instead of 15. The existing `fireAlert` re-confirm guards against stale-cache phantom prompts.
 
-**Tech Stack:** Swift 5.9, Swift Package Manager (`MagpieCore` library target), XCTest, AppKit/Foundation/Combine.
+**Tech Stack:** Swift 5.9, Swift Package Manager (`MagpieCore` library target), AppKit/Foundation/Combine.
+
+> **AMENDMENT (2026-06-04, during execution):** This machine has no Xcode and no
+> runnable test framework — Command Line Tools ship neither XCTest nor a working
+> Swift Testing (the bundled `Testing.framework` is missing `lib_TestingInterop.dylib`).
+> Tests therefore run via a **plain executable target** `MagpieCoreTests` with a tiny
+> assert harness (`TestHarness` in `Tests/MagpieCore/main.swift`), run with
+> `swift run MagpieCoreTests` (exits non-zero on any failure). Each suite is a
+> `runXxx()` function in its own file that records results via `TestHarness.check(...)`,
+> added to the run list in `main.swift`. The XCTest code in Tasks 2–5 below is
+> superseded by the harness-style equivalents the implementer is given; coverage is
+> identical. Task 1 is already implemented this way and committed.
 
 ---
 
