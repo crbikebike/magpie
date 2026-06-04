@@ -16,5 +16,14 @@ let package = Package(
                 "FloatingPillView.swift",
             ]
         ),
+        // No XCTest or runnable Swift Testing on this Command Line Tools
+        // install (no Xcode; the bundled Testing.framework is missing its
+        // runtime interop dylib). Tests run as a plain executable with a small
+        // assert harness — `swift run MagpieCoreTests`.
+        .executableTarget(
+            name: "MagpieCoreTests",
+            dependencies: ["MagpieCore"],
+            path: "Tests/MagpieCore"
+        ),
     ]
 )
