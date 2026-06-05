@@ -5,9 +5,9 @@ Update Magpie to the latest version. Run these shell commands in order:
    brew list whisper-cpp &>/dev/null || brew install whisper-cpp
    ```
 
-2. Pull and rebuild. The build downloads the ~180MB transcription model the first time it runs after the switch, then caches it for subsequent rebuilds:
+2. Pull and rebuild. Run from the Magpie repo you invoked this command in (`$CLAUDE_PROJECT_DIR`), not a hardcoded path — otherwise the update targets the wrong clone, or none at all. The build downloads the ~180MB transcription model the first time it runs after the switch, then caches it for subsequent rebuilds:
    ```bash
-   cd ~/magpie && git pull && bash bin/build.sh
+   cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" && git pull && bash bin/build.sh
    ```
 
 3. Bounce the watcher so it picks up the new watcher.py from the bundle:
@@ -31,4 +31,4 @@ Update Magpie to the latest version. Run these shell commands in order:
 
 Your output folder, permissions, and watcher configuration are not affected by the update.
 
-If ~/magpie doesn't exist yet, run /install-magpie instead.
+If you don't have a Magpie checkout yet, run /install-magpie instead.
