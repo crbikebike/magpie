@@ -26,10 +26,14 @@ final class FloatingPillWindow: NSPanel {
     /// hosts a hosting controller that lays out at this width.
     private static let pillWidth: CGFloat = 320
 
-    // Default position: top-right, 80pt from right edge, 60pt from top.
+    // Default position: horizontally centered, 60pt from top. macOS system
+    // notification alerts always stack from the top-right corner, so centering
+    // the pill keeps it clear of them (issue #27) without moving it somewhere
+    // unexpected. Persisted drag-to-reposition behavior is unaffected — this
+    // only applies when there's no saved position (or it's off-screen).
     func defaultOrigin(for screen: NSScreen) -> NSPoint {
         let visible = screen.visibleFrame
-        let x = visible.maxX - 80 - frame.width
+        let x = visible.midX - frame.width / 2
         let y = visible.maxY - 60
         return NSPoint(x: x, y: y)
     }
